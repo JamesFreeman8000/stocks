@@ -8,38 +8,26 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <style>
   :root {
-    --bg: #0b0e18;
-    --surface: #12172a;
-    --surface2: #1a1f33;
-    --border: #1e2640;
-    --accent: #00d4aa;
-    --accent2: #0099ff;
-    --red: #ff4d6d;
-    --yellow: #fbbf24;
-    --purple: #818cf8;
-    --text: #c9d3e8;
-    --muted: #4a5470;
-    --font-display: 'Bebas Neue', sans-serif;
-    --font-mono: 'DM Mono', monospace;
+    --bg: #0b0e18; --surface: #12172a; --surface2: #1a1f33; --border: #1e2640;
+    --accent: #00d4aa; --accent2: #0099ff; --red: #ff4d6d; --yellow: #fbbf24;
+    --purple: #818cf8; --text: #c9d3e8; --muted: #4a5470;
+    --font-display: 'Bebas Neue', sans-serif; --font-mono: 'DM Mono', monospace;
+    --sidebar-w: 220px; --content-max: 1280px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: var(--font-mono); min-height: 100vh; }
 
-  /* SIDEBAR */
+  /* ── SIDEBAR ── */
   #sidebar {
-    position: fixed; left: 0; top: 0; bottom: 0; width: 220px;
+    position: fixed; left: 0; top: 0; bottom: 0; width: var(--sidebar-w);
     background: var(--surface); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; z-index: 100;
+    display: flex; flex-direction: column; z-index: 100; transition: transform 0.25s;
   }
-  .logo {
-    padding: 28px 22px 24px;
-    border-bottom: 1px solid var(--border);
-  }
+  .logo { padding: 28px 22px 24px; border-bottom: 1px solid var(--border); }
   .logo-eyebrow { font-size: 0.58rem; letter-spacing: 3px; color: var(--accent); text-transform: uppercase; margin-bottom: 4px; }
   .logo-title { font-family: var(--font-display); font-size: 1.9rem; color: #e8edf8; letter-spacing: 2px; line-height: 1; }
   .logo-sub { font-size: 0.6rem; color: var(--muted); letter-spacing: 1.5px; margin-top: 6px; }
-
-  nav { flex: 1; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; }
+  nav { flex: 1; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; overflow-y: auto; }
   .nav-btn {
     background: none; border: none; width: 100%; text-align: left;
     padding: 11px 14px; border-radius: 8px; cursor: pointer;
@@ -49,50 +37,45 @@
   }
   .nav-btn:hover { background: var(--surface2); color: var(--text); }
   .nav-btn.active { background: var(--accent)18; color: var(--accent); }
-  .nav-btn.active::before {
-    content: ''; position: absolute; left: 0; top: 20%; bottom: 20%;
-    width: 3px; background: var(--accent); border-radius: 0 3px 3px 0;
-  }
+  .nav-btn.active::before { content:''; position:absolute; left:0; top:20%; bottom:20%; width:3px; background:var(--accent); border-radius:0 3px 3px 0; }
   .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
-
-  .sidebar-footer {
-    padding: 16px 22px; border-top: 1px solid var(--border);
-    font-size: 0.6rem; color: var(--muted); letter-spacing: 1px;
-  }
+  .sidebar-footer { padding: 16px 22px; border-top: 1px solid var(--border); font-size: 0.6rem; color: var(--muted); letter-spacing: 1px; }
   .sidebar-date { color: var(--accent); margin-bottom: 2px; font-size: 0.68rem; }
 
-  /* MAIN */
-  #main { margin-left: 220px; min-height: 100vh; }
+  /* Mobile sidebar overlay */
+  #sidebar-overlay { display:none; position:fixed; inset:0; background:#00000060; z-index:99; }
 
-  /* TOPBAR */
+  /* ── MAIN ── */
+  #main { margin-left: var(--sidebar-w); min-height: 100vh; display: flex; flex-direction: column; }
+
+  /* ── TOPBAR ── */
   .topbar {
     background: var(--surface); border-bottom: 1px solid var(--border);
-    padding: 16px 32px; display: flex; align-items: center; justify-content: space-between;
-    position: sticky; top: 0; z-index: 50;
+    padding: 14px 24px; display: flex; align-items: center; justify-content: space-between;
+    position: sticky; top: 0; z-index: 50; gap: 12px;
   }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
   .topbar-title { font-family: var(--font-display); font-size: 1.5rem; color: #e8edf8; letter-spacing: 2px; }
-  .topbar-actions { display: flex; gap: 10px; }
+  .topbar-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #menu-toggle { display:none; background:none; border:none; color:var(--text); font-size:1.4rem; cursor:pointer; padding:4px 8px; }
 
-  /* CONTENT */
-  .tab-content { display: none; padding: 32px; }
+  /* ── CONTENT ── */
+  .tab-content { display: none; padding: 28px 24px; max-width: var(--content-max); width: 100%; }
   .tab-content.active { display: block; }
+  #customer-profile { padding: 28px 24px; max-width: var(--content-max); }
 
-  /* STAT CARDS */
-  .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  /* ── STAT CARDS ── */
+  .stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 24px; }
   .stat-card {
     background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
-    padding: 20px 24px; flex: 1; min-width: 140px; transition: border-color 0.2s;
+    padding: 18px 22px; flex: 1; min-width: 130px; transition: border-color 0.2s;
   }
   .stat-card:hover { border-color: var(--accent); }
-  .stat-label { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
-  .stat-val { font-family: var(--font-display); font-size: 2rem; letter-spacing: 1px; }
+  .stat-label { font-size: 0.58rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); margin-bottom: 6px; }
+  .stat-val { font-family: var(--font-display); font-size: 1.8rem; letter-spacing: 1px; }
 
-  /* BUTTONS */
-  .btn {
-    border: none; border-radius: 7px; padding: 8px 16px;
-    font-family: var(--font-mono); font-size: 0.73rem; cursor: pointer;
-    font-weight: 500; letter-spacing: 0.5px; transition: opacity 0.15s;
-  }
+  /* ── BUTTONS ── */
+  .btn { border:none; border-radius:7px; padding:8px 16px; font-family:var(--font-mono); font-size:0.73rem; cursor:pointer; font-weight:500; letter-spacing:0.5px; transition:opacity 0.15s; white-space:nowrap; }
   .btn:hover { opacity: 0.82; }
   .btn-accent { background: var(--accent); color: #061210; }
   .btn-red { background: var(--red); color: #fff; }
@@ -100,154 +83,204 @@
   .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
   .btn-sm { padding: 5px 11px; font-size: 0.68rem; }
 
-  /* TABLES */
+  /* ── TABLES ── */
   .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: auto; }
-  table { width: 100%; border-collapse: collapse; min-width: 700px; }
-  thead th {
-    background: var(--surface2); color: var(--muted); font-size: 0.6rem;
-    text-transform: uppercase; letter-spacing: 2px; padding: 13px 16px;
-    text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer;
-  }
+  table { width: 100%; border-collapse: collapse; min-width: 600px; }
+  thead th { background: var(--surface2); color: var(--muted); font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; }
   thead th:hover { color: var(--accent); }
-  tbody td { padding: 12px 16px; font-size: 0.77rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  tbody td { padding: 11px 14px; font-size: 0.75rem; border-bottom: 1px solid var(--border); vertical-align: middle; }
   tbody tr:last-child td { border-bottom: none; }
   tbody tr:hover td { background: #ffffff05; }
 
-  /* PILL */
-  .pill {
-    display: inline-block; padding: 3px 10px; border-radius: 20px;
-    font-size: 0.65rem; font-weight: 500; letter-spacing: 0.5px;
-  }
-  .pill-green { background: #d1fae520; color: #34d399; border: 1px solid #34d39940; }
-  .pill-red { background: #fee2e220; color: #f87171; border: 1px solid #f8717140; }
-  .pill-yellow { background: #fef9c320; color: #fbbf24; border: 1px solid #fbbf2440; }
-  .pill-blue { background: #dbeafe20; color: #60a5fa; border: 1px solid #60a5fa40; }
-  .pill-purple { background: #ede9fe20; color: #a78bfa; border: 1px solid #a78bfa40; }
+  /* ── PILLS ── */
+  .pill { display:inline-block; padding:3px 10px; border-radius:20px; font-size:0.63rem; font-weight:500; letter-spacing:0.5px; }
+  .pill-green { background:#d1fae520; color:#34d399; border:1px solid #34d39940; }
+  .pill-red { background:#fee2e220; color:#f87171; border:1px solid #f8717140; }
+  .pill-yellow { background:#fef9c320; color:#fbbf24; border:1px solid #fbbf2440; }
+  .pill-blue { background:#dbeafe20; color:#60a5fa; border:1px solid #60a5fa40; }
+  .pill-purple { background:#ede9fe20; color:#a78bfa; border:1px solid #a78bfa40; }
 
-  /* FORM */
-  .modal-overlay {
-    display: none; position: fixed; inset: 0; background: #00000080;
-    z-index: 200; align-items: center; justify-content: center;
-  }
-  .modal-overlay.open { display: flex; }
-  .modal {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
-    padding: 28px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
-  }
-  .modal-title { font-family: var(--font-display); font-size: 1.4rem; color: #e8edf8; letter-spacing: 2px; margin-bottom: 22px; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-  .form-group { display: flex; flex-direction: column; gap: 6px; }
-  .form-group.full { grid-column: 1/-1; }
-  label { font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; }
-  input, select, textarea {
-    background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
-    color: var(--text); font-family: var(--font-mono); font-size: 0.77rem;
-    padding: 9px 12px; outline: none; transition: border-color 0.15s;
-  }
-  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
-  textarea { resize: vertical; min-height: 80px; }
-  .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 22px; }
+  /* ── MODALS ── */
+  .modal-overlay { display:none; position:fixed; inset:0; background:#00000080; z-index:200; align-items:center; justify-content:center; padding:16px; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; }
+  .modal-title { font-family:var(--font-display); font-size:1.4rem; color:#e8edf8; letter-spacing:2px; margin-bottom:20px; }
+  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .form-group { display:flex; flex-direction:column; gap:6px; }
+  .form-group.full { grid-column:1/-1; }
+  label { font-size:0.6rem; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; }
+  input, select, textarea { background:var(--bg); border:1px solid var(--border); border-radius:7px; color:var(--text); font-family:var(--font-mono); font-size:0.77rem; padding:9px 12px; outline:none; transition:border-color 0.15s; width:100%; }
+  input:focus, select:focus, textarea:focus { border-color:var(--accent); }
+  textarea { resize:vertical; min-height:70px; }
+  .modal-footer { display:flex; gap:10px; justify-content:flex-end; margin-top:20px; flex-wrap:wrap; }
 
-  /* SECTION HEADER */
-  .section-head {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 18px;
-  }
-  .section-head-title { font-family: var(--font-display); font-size: 1.1rem; color: #e8edf8; letter-spacing: 2px; }
+  /* ── SECTION HEADER ── */
+  .section-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px; }
+  .section-head-title { font-family:var(--font-display); font-size:1.1rem; color:#e8edf8; letter-spacing:2px; }
 
-  /* HOME GRID */
-  .home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; margin-top: 28px; }
-  .home-card {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
-    padding: 28px 26px; cursor: pointer; transition: all 0.2s; position: relative; overflow: hidden;
-  }
-  .home-card::before {
-    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
-    background: var(--card-accent, var(--accent));
-  }
-  .home-card:hover { border-color: var(--card-accent, var(--accent)); transform: translateY(-2px); }
-  .home-card-icon { font-size: 2.2rem; margin-bottom: 14px; }
-  .home-card-title { font-family: var(--font-display); font-size: 1.3rem; color: #e8edf8; letter-spacing: 2px; margin-bottom: 6px; }
-  .home-card-desc { font-size: 0.7rem; color: var(--muted); line-height: 1.6; }
-  .home-card-arrow { position: absolute; bottom: 20px; right: 22px; color: var(--muted); font-size: 1rem; transition: color 0.2s; }
-  .home-card:hover .home-card-arrow { color: var(--card-accent, var(--accent)); }
+  /* ── HOME GRID ── */
+  .home-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:16px; margin-top:24px; }
+  .home-card { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; cursor:pointer; transition:all 0.2s; position:relative; overflow:hidden; }
+  .home-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--card-accent, var(--accent)); }
+  .home-card:hover { border-color:var(--card-accent, var(--accent)); transform:translateY(-2px); }
+  .home-card-icon { font-size:2rem; margin-bottom:12px; }
+  .home-card-title { font-family:var(--font-display); font-size:1.2rem; color:#e8edf8; letter-spacing:2px; margin-bottom:6px; }
+  .home-card-desc { font-size:0.68rem; color:var(--muted); line-height:1.6; }
+  .home-card-arrow { position:absolute; bottom:18px; right:20px; color:var(--muted); font-size:1rem; transition:color 0.2s; }
+  .home-card:hover .home-card-arrow { color:var(--card-accent, var(--accent)); }
 
-  /* CALENDAR */
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-  .cal-header { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; margin-bottom: 6px; }
-  .cal-day-label { text-align: center; font-size: 0.6rem; color: var(--muted); letter-spacing: 2px; padding: 8px 0; text-transform: uppercase; }
-  .cal-cell {
-    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-    min-height: 80px; padding: 8px; cursor: pointer; transition: border-color 0.15s; position: relative;
-  }
-  .cal-cell:hover { border-color: var(--accent); }
-  .cal-cell.today { border-color: var(--accent); }
-  .cal-cell.other-month .cal-date { color: var(--muted); }
-  .cal-date { font-size: 0.72rem; font-weight: 500; margin-bottom: 4px; }
-  .cal-event { background: var(--accent)25; border-left: 2px solid var(--accent); border-radius: 3px; padding: 2px 5px; font-size: 0.6rem; color: var(--accent); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .cal-event.exp { background: var(--red)25; border-color: var(--red); color: var(--red); }
-  .cal-nav { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
-  .cal-month-label { font-family: var(--font-display); font-size: 1.4rem; color: #e8edf8; letter-spacing: 2px; }
+  /* ── CALENDAR ── */
+  .cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
+  .cal-header { display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; margin-bottom:6px; }
+  .cal-day-label { text-align:center; font-size:0.58rem; color:var(--muted); letter-spacing:2px; padding:8px 0; text-transform:uppercase; }
+  .cal-cell { background:var(--surface); border:1px solid var(--border); border-radius:6px; min-height:72px; padding:6px; cursor:pointer; transition:border-color 0.15s; }
+  .cal-cell:hover { border-color:var(--accent); }
+  .cal-cell.today { border-color:var(--accent); }
+  .cal-date { font-size:0.7rem; font-weight:500; margin-bottom:3px; }
+  .cal-event { background:var(--accent)25; border-left:2px solid var(--accent); border-radius:3px; padding:2px 4px; font-size:0.56rem; color:var(--accent); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cal-event.exp { background:var(--red)25; border-color:var(--red); color:var(--red); }
+  .cal-nav { display:flex; align-items:center; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+  .cal-month-label { font-family:var(--font-display); font-size:1.4rem; color:#e8edf8; letter-spacing:2px; }
 
-  .svc-chip { display:inline-flex;align-items:center;gap:6px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;font-size:0.72rem;color:var(--muted);cursor:pointer;transition:all 0.15s;user-select:none;font-family:var(--font-mono); }
-  .svc-chip:hover { border-color:var(--accent);color:var(--text); }
-  .svc-chip.checked { background:var(--accent)30;border-color:var(--accent);color:var(--accent);font-weight:500; }
+  /* ── SERVICE CHIPS ── */
+  .svc-chip { display:inline-flex; align-items:center; background:var(--surface2); border:1px solid var(--border); border-radius:20px; padding:6px 13px; font-size:0.7rem; color:var(--muted); cursor:pointer; transition:all 0.15s; user-select:none; font-family:var(--font-mono); }
+  .svc-chip:hover { border-color:var(--accent); color:var(--text); }
+  .svc-chip.checked { background:var(--accent)30; border-color:var(--accent); color:var(--accent); font-weight:500; }
 
-  .weather-day { background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-align:center;min-width:80px;flex:1; }
-  .weather-icon { font-size:1.6rem;margin-bottom:4px; }
-  .weather-temp { font-family:var(--font-display);font-size:1.2rem;color:#e8edf8; }
-  .weather-label { font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px; }
-  .weather-desc { font-size:0.62rem;color:var(--muted);margin-top:2px; }
-  .rain-bar { height:3px;border-radius:2px;margin-top:6px; }
+  /* ── WEATHER ── */
+  .weather-day { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:12px 10px; text-align:center; min-width:72px; flex:1; }
+  .weather-icon { font-size:1.5rem; margin-bottom:4px; }
+  .weather-temp { font-family:var(--font-display); font-size:1.1rem; color:#e8edf8; }
+  .weather-label { font-size:0.56rem; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:5px; }
+  .weather-desc { font-size:0.6rem; color:var(--muted); margin-top:2px; }
+  #town-dropdown { display:none; position:absolute; top:38px; left:0; width:220px; background:var(--surface2); border:1px solid var(--border); border-radius:8px; z-index:100; max-height:200px; overflow-y:auto; box-shadow:0 8px 24px #00000040; }
   #town-dropdown::-webkit-scrollbar { width:4px; }
-  #town-dropdown::-webkit-scrollbar-thumb { background:var(--border);border-radius:2px; }
-  .town-option { padding:9px 14px;font-size:0.73rem;color:var(--text);cursor:pointer;font-family:var(--font-mono);border-bottom:1px solid var(--border); }
+  #town-dropdown::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+  .town-option { padding:9px 14px; font-size:0.72rem; color:var(--text); cursor:pointer; font-family:var(--font-mono); border-bottom:1px solid var(--border); }
   .town-option:last-child { border-bottom:none; }
-  .town-option:hover { background:var(--accent)15;color:var(--accent); }
+  .town-option:hover { background:var(--accent)15; color:var(--accent); }
 
-  /* CUSTOMER PROFILE PAGE */
-  #customer-profile { display: none; }
-  #customer-profile.active { display: block; }
-  .profile-header { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 24px; display: flex; align-items: flex-start; gap: 24px; }
-  .profile-avatar-lg { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-family: var(--font-display); font-size: 1.8rem; flex-shrink: 0; }
-  .job-photo-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-  .photo-slot { border: 2px dashed var(--border); border-radius: 8px; min-height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; transition: border-color 0.15s; position: relative; overflow: hidden; }
-  .photo-slot:hover { border-color: var(--accent); }
-  .photo-slot img { width: 100%; height: 120px; object-fit: cover; border-radius: 6px; }
-  .photo-slot-label { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 2px; margin-top: 6px; }
-  .photo-slot-overlay { position: absolute; inset: 0; background: #00000060; display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.15s; border-radius: 6px; }
-  .photo-slot:hover .photo-slot-overlay { opacity: 1; }
+  /* ── CUSTOMER PROFILE ── */
+  #customer-profile { display:none; }
+  #customer-profile.active { display:block; }
+  .profile-header { background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:24px; margin-bottom:20px; display:flex; align-items:flex-start; gap:20px; flex-wrap:wrap; }
+  .profile-avatar-lg { width:60px; height:60px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--font-display); font-size:1.6rem; flex-shrink:0; }
+  .job-photo-pair { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+  .photo-slot { border:2px dashed var(--border); border-radius:8px; min-height:110px; display:flex; flex-direction:column; align-items:center; justify-content:center; cursor:pointer; transition:border-color 0.15s; position:relative; overflow:hidden; }
+  .photo-slot:hover { border-color:var(--accent); }
+  .photo-slot img { width:100%; height:110px; object-fit:cover; border-radius:6px; }
+  .photo-slot-label { font-size:0.56rem; color:var(--muted); text-transform:uppercase; letter-spacing:2px; margin-top:5px; }
+  .photo-slot-overlay { position:absolute; inset:0; background:#00000060; display:flex; align-items:center; justify-content:center; opacity:0; transition:opacity 0.15s; border-radius:6px; }
+  .photo-slot:hover .photo-slot-overlay { opacity:1; }
 
-  /* CHART BARS */
-  .chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-  .chart-title { font-family: var(--font-display); font-size: 1rem; color: #e8edf8; letter-spacing: 2px; margin-bottom: 20px; }
-  .bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 160px; }
-  .bar-group { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
-  .bar { width: 100%; border-radius: 4px 4px 0 0; transition: opacity 0.2s; cursor: pointer; position: relative; }
-  .bar:hover { opacity: 0.8; }
-  .bar-label { font-size: 0.58rem; color: var(--muted); letter-spacing: 1px; }
-  .bar-val { font-size: 0.65rem; color: var(--text); }
-  .donut-wrap { display: flex; align-items: center; gap: 32px; }
-  .donut-legend { display: flex; flex-direction: column; gap: 10px; }
-  .legend-item { display: flex; align-items: center; gap: 10px; font-size: 0.72rem; }
-  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  /* ── CHARTS ── */
+  .chart-wrap { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .chart-title { font-family:var(--font-display); font-size:1rem; color:#e8edf8; letter-spacing:2px; margin-bottom:16px; }
+  .bar-chart { display:flex; align-items:flex-end; gap:8px; height:140px; }
+  .bar-group { display:flex; flex-direction:column; align-items:center; gap:4px; flex:1; }
+  .bar { width:100%; border-radius:4px 4px 0 0; transition:opacity 0.2s; cursor:pointer; }
+  .bar:hover { opacity:0.8; }
+  .bar-label { font-size:0.55rem; color:var(--muted); letter-spacing:1px; }
+  .bar-val { font-size:0.6rem; color:var(--text); }
+  .donut-wrap { display:flex; align-items:center; gap:24px; flex-wrap:wrap; }
+  .donut-legend { display:flex; flex-direction:column; gap:8px; }
+  .legend-item { display:flex; align-items:center; gap:8px; font-size:0.7rem; }
+  .legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
 
-  /* CUSTOMER CARDS */
-  .customer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .customer-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: border-color 0.15s; }
-  .customer-card:hover { border-color: var(--accent); }
-  .customer-avatar { width: 42px; height: 42px; border-radius: 50%; background: var(--accent)30; border: 1px solid var(--accent)50; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; margin-bottom: 12px; }
-  .customer-name { font-family: var(--font-display); font-size: 1.1rem; color: #e8edf8; letter-spacing: 1px; margin-bottom: 4px; }
-  .customer-info { font-size: 0.68rem; color: var(--muted); line-height: 1.8; }
-  .customer-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  /* ── CUSTOMER CARDS ── */
+  .customer-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(240px, 1fr)); gap:14px; }
+  .customer-card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:18px; transition:border-color 0.15s; }
+  .customer-card:hover { border-color:var(--accent); }
+  .customer-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1rem; margin-bottom:10px; }
+  .customer-name { font-family:var(--font-display); font-size:1.05rem; color:#e8edf8; letter-spacing:1px; margin-bottom:4px; }
+  .customer-info { font-size:0.68rem; color:var(--muted); line-height:1.8; }
+  .customer-tags { display:flex; gap:6px; flex-wrap:wrap; }
 
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
-  ::-webkit-scrollbar { width: 5px; height: 5px; background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  a { color:var(--accent); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  ::-webkit-scrollbar { width:5px; height:5px; background:var(--bg); }
+  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none} }
+  .tab-content.active { animation:fadeIn 0.2s ease; }
 
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  .tab-content.active { animation: fadeIn 0.22s ease; }
+  /* ══════════════════════════════════════
+     MOBILE RESPONSIVE  ≤ 768px
+  ══════════════════════════════════════ */
+  @media (max-width: 768px) {
+    :root { --sidebar-w: 0px; }
+
+    /* Sidebar slides in as drawer */
+    #sidebar { transform: translateX(-220px); width: 220px; }
+    #sidebar.open { transform: translateX(0); }
+    #sidebar-overlay.open { display: block; }
+
+    /* Main fills full width */
+    #main { margin-left: 0; }
+
+    /* Topbar */
+    .topbar { padding: 12px 16px; }
+    #menu-toggle { display: block; }
+    .topbar-actions .btn-ghost:not(#export-btn) { display: none; }
+    #sync-status { display: none; }
+
+    /* Content padding */
+    .tab-content { padding: 16px; }
+    #customer-profile { padding: 16px; }
+
+    /* Stats wrap tighter */
+    .stat-card { min-width: 120px; padding: 14px 16px; }
+    .stat-val { font-size: 1.4rem; }
+
+    /* Home grid single column */
+    .home-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .home-card { padding: 18px 16px; }
+    .home-card-title { font-size: 1rem; }
+
+    /* Calendar smaller cells */
+    .cal-cell { min-height: 50px; padding: 4px; }
+    .cal-event { font-size: 0.5rem; }
+    .cal-day-label { font-size: 0.52rem; letter-spacing: 0; padding: 5px 0; }
+
+    /* Form grid single column on mobile */
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.full { grid-column: 1; }
+    .modal { padding: 20px 16px; margin: 0; border-radius: 12px; }
+    .modal-overlay { padding: 12px; align-items: flex-end; }
+    .modal { border-radius: 16px 16px 0 0; max-height: 85vh; }
+
+    /* Section heads stack */
+    .section-head { flex-direction: column; align-items: flex-start; }
+
+    /* Tables scroll */
+    .table-wrap { border-radius: 8px; }
+
+    /* Profile header stacks */
+    .profile-header { flex-direction: column; gap: 14px; }
+
+    /* Weather cards scroll */
+    #weather-content > div:last-child { overflow-x: auto; padding-bottom: 8px; }
+    .weather-day { min-width: 68px; }
+
+    /* Customer grid */
+    .customer-grid { grid-template-columns: 1fr; }
+
+    /* Charts */
+    .chart-wrap { padding: 16px; }
+    .donut-wrap { flex-direction: column; gap: 16px; }
+
+    /* Service chips smaller */
+    .svc-chip { padding: 5px 10px; font-size: 0.65rem; }
+
+    /* Reports months grid */
+    #report-months-grid { grid-template-columns: 1fr 1fr !important; }
+  }
+
+  @media (max-width: 420px) {
+    .home-grid { grid-template-columns: 1fr; }
+    .stats-row { gap: 8px; }
+    .stat-card { min-width: 100px; padding: 12px 14px; }
+    #report-months-grid { grid-template-columns: 1fr !important; }
+  }
 </style>
 </head>
 <body>
@@ -265,6 +298,9 @@
   </button>
   <div id="sign-in-error" style="display:none;font-size:0.68rem;color:var(--red);max-width:340px;text-align:center;line-height:1.6"></div>
 </div>
+
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div id="sidebar-overlay" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
 <div id="sidebar">
@@ -302,7 +338,10 @@
 <!-- MAIN -->
 <div id="main">
   <div class="topbar">
-    <div class="topbar-title" id="topbar-title">HOME</div>
+    <div class="topbar-left">
+      <button id="menu-toggle" onclick="toggleSidebar()">☰</button>
+      <div class="topbar-title" id="topbar-title">HOME</div>
+    </div>
     <div class="topbar-actions">
       <div id="sync-status" style="font-size:0.65rem;color:var(--muted);letter-spacing:1px;display:flex;align-items:center;gap:6px;padding:0 8px">
         <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block"></span>
@@ -1003,6 +1042,16 @@ function getJobsForCustomer(c) {
   });
 }
 
+// ═══════════════ MOBILE SIDEBAR ═══════════════
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+  document.getElementById('sidebar-overlay').classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-overlay').classList.remove('open');
+}
+
 // ═══════════════ NAV ═══════════════
 function showTab(tab) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
@@ -1013,6 +1062,7 @@ function showTab(tab) {
   if (nb) nb.classList.add('active');
   const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab.toUpperCase();
+  closeSidebar(); // close drawer on mobile after nav
   if (tab==='income')    renderIncome();
   if (tab==='expenses')  renderExpenses();
   if (tab==='schedule')  renderCalendar();
@@ -1747,28 +1797,143 @@ function sortTable(type,col){
 // ═══════════════ INIT ═══════════════
 // ═══════════════ WEATHER ═══════════════
 const NJ_TOWNS = [
-  'Absecon','Atlantic City','Audubon','Avalon','Barnegat','Barrington','Bayville','Bellmawr',
-  'Bergenfield','Berlin','Blackwood','Bordentown','Bound Brook','Bridgeton','Browns Mills',
-  'Burlington','Camden','Cape May','Carneys Point','Carteret','Cherry Hill','Cinnaminson',
-  'Clayton','Clementon','Clifton','Collingswood','Deptford','Dover','East Orange',
-  'Eatontown','Egg Harbor City','Egg Harbor Township','Elizabeth','Elmwood Park',
-  'Evesham','Fair Lawn','Flemington','Florence','Franklinville','Freehold','Galloway',
-  'Glassboro','Gloucester City','Gloucester Township','Hackensack','Haddon Heights',
-  'Haddonfield','Hammonton','Hazlet','Hillside','Hoboken','Hopatcong','Hopewell',
-  'Jackson','Jersey City','Kearny','Lacey','Lakewood','Lavallette','Lawrence',
-  'Linden','Little Egg Harbor','Lodi','Long Branch','Lyndhurst','Malaga','Manahawkin',
-  'Mannington','Maple Shade','Maplewood','Marlton','Medford','Millville','Monroe',
-  'Moorestown','Mount Holly','Mount Laurel','Mullica Hill','Neptune','New Brunswick',
-  'Newark','North Bergen','North Wildwood','Northfield','Nutley','Ocean City',
-  'Ocean Township','Paterson','Pemberton','Pennsauken','Penns Grove','Pennsville',
-  'Perth Amboy','Phillipsburg','Pitman','Plainfield','Pleasantville','Point Pleasant',
-  'Princeton','Rahway','Ramsey','Randolph','Red Bank','Ridgewood','Rio Grande',
-  'Riverton','Roselle','Runnemede','Salem','Sayreville','Sea Isle City','Sewell',
-  'Sicklerville','Somerset','Somerville','South Amboy','South Brunswick','South Orange',
-  'South Vineland','Sparta','Swedesboro','Toms River','Trenton','Union','Union City',
-  'Ventnor City','Vineland','Voorhees','Washington Township','West Deptford','West Orange',
-  'West Wildwood','Westampton','Westfield','Westville','Weymouth','Wildwood',
-  'Williamstown','Willingboro','Winslow','Woodbury','Woodbury Heights','Woodstown',
+  // Atlantic County
+  'Absecon','Atlantic City','Brigantine','Buena','Buena Vista Township','Corbin City',
+  'Egg Harbor City','Egg Harbor Township','Estell Manor','Folsom','Galloway Township',
+  'Hamilton Township','Hammonton','Linwood','Longport','Margate City','Mullica Township',
+  'Northfield','Pleasantville','Port Republic','Somers Point','Ventnor City','Weymouth Township',
+  // Bergen County
+  'Allendale','Alpine','Bergenfield','Bogota','Carlstadt','Cliffside Park','Closter',
+  'Cresskill','Demarest','Dumont','Elmwood Park','East Rutherford','Edgewater','Emerson',
+  'Englewood','Englewood Cliffs','Fair Lawn','Fairview','Fort Lee','Franklin Lakes','Garfield',
+  'Glen Rock','Hackensack','Harrington Park','Hasbrouck Heights','Haworth','Hillsdale',
+  'Ho-Ho-Kus','Leonia','Little Ferry','Lodi','Lyndhurst','Mahwah','Maywood','Midland Park',
+  'Montvale','Moonachie','New Milford','North Arlington','Northvale','Norwood','Oakland',
+  'Old Tappan','Oradell','Palisades Park','Paramus','Park Ridge','Ramsey','Ridgefield',
+  'Ridgefield Park','Ridgewood','River Edge','River Vale','Rochelle Park','Rockleigh',
+  'Rutherford','Saddle Brook','Saddle River','South Hackensack','Teaneck','Tenafly',
+  'Teterboro','Upper Saddle River','Waldwick','Wallington','Washington Township',
+  'Westwood','Woodcliff Lake','Wood-Ridge','Wyckoff',
+  // Burlington County
+  'Bass River Township','Beverly','Bordentown','Bordentown Township','Burlington',
+  'Burlington Township','Chesterfield Township','Cinnaminson','Delanco','Delran',
+  'Eastampton','Edgewater Park','Evesham Township','Fieldsboro','Florence Township',
+  'Hainesport','Lumberton','Mansfield Township','Maple Shade','Medford','Medford Lakes',
+  'Moorestown','Mount Holly','Mount Laurel','New Hanover Township','North Hanover Township',
+  'Palmyra','Pemberton','Pemberton Township','Riverside','Riverton','Shamong Township',
+  'Southampton Township','Springfield Township','Tabernacle','Washington Township',
+  'Westampton','Willingboro','Woodland Township','Wrightstown',
+  // Camden County
+  'Audubon','Audubon Park','Barrington','Bellmawr','Berlin','Berlin Township','Brooklawn',
+  'Camden','Cherry Hill','Chesilhurst','Clementon','Collingswood','Gibbsboro',
+  'Gloucester City','Gloucester Township','Haddon Township','Haddonfield','Haddon Heights',
+  'Hi-Nella','Laurel Springs','Lawnside','Lindenwold','Magnolia','Merchantville',
+  'Mount Ephraim','Oaklyn','Pennsauken','Pine Hill','Pine Valley','Runnemede','Somerdale',
+  'Stratford','Tavistock','Voorhees','Waterford Township','Winslow Township','Woodlynne',
+  // Cape May County
+  'Avalon','Cape May','Cape May Point','Dennis Township','Lower Township','Middle Township',
+  'Ocean City','Sea Isle City','Stone Harbor','Upper Township','West Cape May',
+  'West Wildwood','Wildwood','Wildwood Crest','Woodbine',
+  // Cumberland County
+  'Bridgeton','Commercial Township','Deerfield Township','Downe Township','Fairfield Township',
+  'Greenwich Township','Hopewell Township','Lawrence Township','Maurice River Township',
+  'Millville','Shiloh','Stow Creek Township','Upper Deerfield Township','Vineland',
+  // Essex County
+  'Belleville','Bloomfield','Caldwell','Cedar Grove','East Orange','Essex Fells',
+  'Fairfield','Glen Ridge','Irvington','Livingston','Maplewood','Millburn','Montclair',
+  'Newark','North Caldwell','Nutley','Orange','Roseland','South Orange','Verona',
+  'West Caldwell','West Orange',
+  // Gloucester County
+  'Clayton','Deptford Township','East Greenwich Township','Elk Township','Franklin Township',
+  'Glassboro','Greenwich Township','Harrison Township','Logan Township','Mantua Township',
+  'Monroe Township','National Park','Newfield','Paulsboro','Pitman','South Harrison Township',
+  'Swedesboro','Washington Township','Wenonah','West Deptford','Westville','Woodbury',
+  'Woodbury Heights','Woolwich Township',
+  // Hudson County
+  'Bayonne','East Newark','Guttenberg','Harrison','Hoboken','Jersey City','Kearny',
+  'North Bergen','Secaucus','Union City','Weehawken','West New York',
+  // Hunterdon County
+  'Alexandria Township','Bethlehem Township','Bloomsbury','Califon','Clinton',
+  'Clinton Township','Delaware Township','East Amwell Township','Flemington',
+  'Franklin Township','Frenchtown','Glen Gardner','Hampton','High Bridge',
+  'Holland Township','Kingwood Township','Lambertville','Lebanon','Lebanon Township',
+  'Milford','Raritan Township','Readington Township','Stockton','Tewksbury Township',
+  'Union Township','West Amwell Township',
+  // Mercer County
+  'East Windsor Township','Ewing Township','Hamilton Township','Hightstown',
+  'Hopewell Borough','Hopewell Township','Lawrence Township','Pennington','Princeton',
+  'Trenton','Washington Township','West Windsor Township',
+  // Middlesex County
+  'Carteret','Cranbury Township','Dunellen','East Brunswick','Edison','Helmetta',
+  'Highland Park','Jamesburg','Old Bridge Township','Metuchen','Middlesex','Milltown',
+  'Monroe Township','New Brunswick','North Brunswick','Perth Amboy','Piscataway',
+  'Plainsboro Township','Sayreville','South Amboy','South Brunswick','South Plainfield',
+  'South River','Spotswood','Woodbridge',
+  // Monmouth County
+  'Allenhurst','Allentown','Asbury Park','Atlantic Highlands','Avon-by-the-Sea','Belmar',
+  'Bradley Beach','Brielle','Colts Neck','Deal','Eatontown','Englishtown','Fair Haven',
+  'Farmingdale','Freehold Borough','Freehold Township','Highlands','Holmdel','Howell',
+  'Interlaken','Keansburg','Keyport','Little Silver','Loch Arbour','Long Branch',
+  'Manalapan','Manasquan','Marlboro','Matawan','Aberdeen','Middletown','Millstone Township',
+  'Monmouth Beach','Neptune Township','Neptune City','Tinton Falls','Ocean Township',
+  'Oceanport','Hazlet','Red Bank','Roosevelt','Rumson','Sea Bright','Sea Girt',
+  'Shrewsbury Borough','Shrewsbury Township','South Belmar','Spring Lake',
+  'Spring Lake Heights','Union Beach','Upper Freehold Township','Wall Township',
+  'West Long Branch',
+  // Morris County
+  'Boonton','Boonton Township','Butler','Chatham Borough','Chatham Township',
+  'Chester Borough','Chester Township','Denville','Dover','East Hanover','Florham Park',
+  'Hanover Township','Harding Township','Kinnelon','Lincoln Park','Madison','Mendham Borough',
+  'Mendham Township','Mine Hill','Montville','Morris Township','Morris Plains','Morristown',
+  'Mountain Lakes','Mount Arlington','Mount Olive','Netcong',
+  'Parsippany-Troy Hills','Long Hill Township','Pequannock','Randolph','Riverdale',
+  'Rockaway Borough','Rockaway Township','Roxbury Township','Victory Gardens',
+  'Washington Township','Wharton',
+  // Ocean County
+  'Barnegat Light','Bay Head','Beach Haven','Beachwood','Berkeley Township','Brick',
+  'Dover Township','Eagleswood Township','Harvey Cedars','Island Heights','Jackson',
+  'Lacey Township','Lakehurst','Lakewood','Lavallette','Little Egg Harbor',
+  'Long Beach Township','Manchester Township','Mantoloking','Ocean Township',
+  'Ocean Gate','Pine Beach','Plumsted Township','Point Pleasant','Point Pleasant Beach',
+  'Seaside Heights','Seaside Park','Ship Bottom','South Toms River','Stafford Township',
+  'Surf City','Tuckerton','Barnegat Township',
+  // Passaic County
+  'Bloomingdale','Clifton','Haledon','Hawthorne','Little Falls','North Haledon','Passaic',
+  'Paterson','Pompton Lakes','Prospect Park','Ringwood','Totowa','Wanaque','Wayne',
+  'West Milford','West Paterson',
+  // Salem County
+  'Alloway Township','Elmer','Elsinboro Township','Lower Alloways Creek Township',
+  'Mannington Township','Oldmans Township','Penns Grove','Pennsville','Pilesgrove Township',
+  'Pittsgrove Township','Quinton Township','Salem','Carneys Point Township',
+  'Upper Pittsgrove Township','Woodstown',
+  // Somerset County
+  'Bedminster Township','Bernards Township','Bernardsville','Bound Brook','Branchburg',
+  'Bridgewater','Far Hills','Franklin Township','Green Brook','Hillsborough',
+  'Manville','Millstone Borough','Montgomery Township','North Plainfield',
+  'Peapack-Gladstone','Raritan','Rocky Hill','Somerville','South Bound Brook',
+  'Warren Township','Watchung',
+  // Sussex County
+  'Andover Borough','Andover Township','Branchville','Byram Township','Frankford Township',
+  'Franklin Borough','Fredon Township','Green Township','Hamburg','Hampton Township',
+  'Hardyston Township','Hopatcong','Lafayette Township','Montague Township','Newton',
+  'Ogdensburg','Sandyston Township','Sparta','Stanhope','Stillwater Township','Sussex',
+  'Vernon Township','Walpack Township','Wantage Township',
+  // Union County
+  'Berkeley Heights','Clark','Cranford','Elizabeth','Fanwood','Garwood','Hillside',
+  'Kenilworth','Linden','Mountainside','New Providence','Plainfield','Rahway','Roselle',
+  'Roselle Park','Scotch Plains','Springfield Township','Summit','Union','Westfield',
+  'Winfield Township',
+  // Warren County
+  'Allamuchy Township','Alpha','Belvidere','Blairstown Township','Franklin Township',
+  'Frelinghuysen Township','Greenwich Township','Hackettstown','Hardwick Township',
+  'Harmony Township','Hope Township','Independence Township','Knowlton Township',
+  'Liberty Township','Lopatcong Township','Mansfield Township','Oxford Township',
+  'Phillipsburg','Pohatcong Township','Washington Borough','Washington Township',
+  'White Township',
+  // Common local community names (not official municipalities but widely used)
+  'Malaga','Sicklerville','Sewell','Blackwood','Turnersville','Williamstown',
+  'Mullica Hill','Toms River','Manahawkin','Browns Mills','Rio Grande','Whitesboro',
+  'Lanoka Harbor','Forked River','Waretown','Marmora','Woodbine Village',
 ].sort();
 
 let selectedTown = 'Vineland';
