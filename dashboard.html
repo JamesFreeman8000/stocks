@@ -1933,12 +1933,44 @@ const NJ_TOWNS = [
   // Common local community names (not official municipalities but widely used)
   'Malaga','Sicklerville','Sewell','Blackwood','Turnersville','Williamstown',
   'Mullica Hill','Toms River','Manahawkin','Browns Mills','Rio Grande','Whitesboro',
-  'Lanoka Harbor','Forked River','Waretown','Marmora','Woodbine Village',
-].sort();
+  'Lanoka Harbor','Forked River','Waretown','Marmora',
+].sort().filter((t,i,a) => a.indexOf(t) === i); // deduplicate
+
+// County lookup for towns that appear in multiple counties
+const NJ_TOWN_COUNTY = {
+  'Franklin Township': ['Atlantic','Burlington','Gloucester','Hunterdon','Somerset','Sussex','Warren'],
+  'Washington Township': ['Burlington','Gloucester','Mercer','Morris','Warren'],
+  'Hamilton Township': ['Atlantic','Mercer'],
+  'Monroe Township': ['Gloucester','Middlesex'],
+  'Hopewell Township': ['Cumberland','Mercer'],
+  'Lawrence Township': ['Cumberland','Mercer'],
+  'Greenwich Township': ['Cumberland','Gloucester','Warren'],
+  'Fairfield Township': ['Cumberland','Essex'],
+  'Ocean Township': ['Monmouth','Ocean'],
+  'Clinton Township': ['Hunterdon'],
+  'Springfield Township': ['Burlington','Union'],
+  'Shrewsbury Township': ['Monmouth'],
+  'Mansfield Township': ['Burlington','Warren'],
+  'Chester Township': ['Morris'],
+  'Chester Borough': ['Morris'],
+  'Chatham Borough': ['Morris'],
+  'Chatham Township': ['Morris'],
+  'Andover Borough': ['Sussex'],
+  'Andover Township': ['Sussex'],
+  'Dover Township': ['Ocean'],
+  'Franklin Borough': ['Sussex'],
+};
 
 let selectedTown = 'Vineland';
 let selectedLat = 39.4862;
 let selectedLon = -75.0255;
+
+function getTownDisplay(t) {
+  const counties = NJ_TOWN_COUNTY[t];
+  if (counties && counties.length > 1) return t + ' <span style="color:var(--muted);font-size:0.62rem">(multiple counties)</span>';
+  if (counties && counties.length === 1) return t + ' <span style="color:var(--muted);font-size:0.62rem">(' + counties[0] + ' Co.)</span>';
+  return t;
+}
 
 function filterNJTowns() {
   const q = document.getElementById('weather-search').value.toLowerCase();
@@ -1951,7 +1983,7 @@ function renderTownDropdown(towns) {
   const dd = document.getElementById('town-dropdown');
   if (!towns.length) { dd.innerHTML = '<div class="town-option" style="color:var(--muted)">No towns found</div>'; return; }
   dd.innerHTML = towns.map(t =>
-    '<div class="town-option" onmousedown="selectTown(\''+t+'\')">'+t+'</div>'
+    '<div class="town-option" onmousedown="selectTown(\''+t+'\')">'+getTownDisplay(t)+'</div>'
   ).join('');
 }
 
@@ -1970,28 +2002,34 @@ function hideTownDropdown() {
 async function selectTown(town) {
   document.getElementById('weather-search').value = town;
   hideTownDropdown();
-  // Geocode the NJ town using Open-Meteo geocoding
+  document.getElementById('weather-content').innerHTML = '<div style="font-size:0.7rem;color:var(--muted)">Finding location...</div>';
   try {
-    const r = await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(town+' New Jersey')+'&count=5&language=en&format=json');
-    const d = await r.json();
-    const result = d.results ? d.results.find(x => x.admin1 && x.admin1.includes('Jersey')) || d.results[0] : null;
+    // Use Nominatim (OpenStreetMap) — much better at NJ township names
+    const query = encodeURIComponent(town + ', New Jersey, USA');
+    const r = await fetch('https://nominatim.openstreetmap.org/search?q='+query+'&format=json&limit=3&countrycodes=us', {
+      headers: { 'Accept-Language': 'en' }
+    });
+    const results = await r.json();
+    // Prefer results with 'New Jersey' in display name
+    const result = results.find(x => x.display_name && x.display_name.includes('New Jersey')) || results[0];
     if (result) {
       selectedTown = town;
-      selectedLat = result.latitude;
-      selectedLon = result.longitude;
+      selectedLat = parseFloat(result.lat);
+      selectedLon = parseFloat(result.lon);
       fetchWeather();
     } else {
-      document.getElementById('weather-content').innerHTML = '<div style="font-size:0.7rem;color:var(--red)">Could not find location for '+town+'</div>';
+      document.getElementById('weather-content').innerHTML =
+        '<div style="font-size:0.7rem;color:var(--red)">Could not find "'+town+'" — try a nearby larger town</div>';
     }
   } catch(e) {
-    document.getElementById('weather-content').innerHTML = '<div style="font-size:0.7rem;color:var(--red)">Geocoding failed — check internet connection</div>';
+    document.getElementById('weather-content').innerHTML =
+      '<div style="font-size:0.7rem;color:var(--red)">Location lookup failed — check internet connection</div>';
   }
 }
 
 async function fetchWeather() {
   const town = document.getElementById('weather-search').value.trim() || selectedTown;
   if (!town) return;
-  // If user typed manually without selecting from dropdown, try to geocode first
   if (town !== selectedTown) { await selectTown(town); return; }
   document.getElementById('weather-content').innerHTML = '<div style="font-size:0.7rem;color:var(--muted)">Loading forecast...</div>';
   try {
@@ -2002,7 +2040,8 @@ async function fetchWeather() {
     const d = await r.json();
     renderWeather(d, town);
   } catch(e) {
-    document.getElementById('weather-content').innerHTML = '<div style="font-size:0.7rem;color:var(--red)">Weather fetch failed — check internet connection</div>';
+    document.getElementById('weather-content').innerHTML =
+      '<div style="font-size:0.7rem;color:var(--red)">Weather fetch failed — check internet connection</div>';
   }
 }
 
