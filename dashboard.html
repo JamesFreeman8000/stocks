@@ -328,7 +328,13 @@
     <button class="nav-btn" onclick="showTab('reports')" id="nav-reports">
       <span class="nav-icon">📊</span> Reports
     </button>
-  </nav>
+    <button class="nav-btn" onclick="showTab('employees')" id="nav-employees">
+      <span class="nav-icon">👷</span> Employees
+    </button>
+    <button class="nav-btn" onclick="showTab('pending')" id="nav-pending">
+      <span class="nav-icon">⏳</span> Pending Approval
+      <span id="nav-pending-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:0.6rem;padding:2px 6px;border-radius:10px;font-weight:600">0</span>
+    </button>
   <div class="sidebar-footer">
     <div class="sidebar-date" id="sidebar-date"></div>
     <div>PRIVATE DASHBOARD</div>
@@ -346,6 +352,20 @@
       <div id="sync-status" style="font-size:0.65rem;color:var(--muted);letter-spacing:1px;display:flex;align-items:center;gap:6px;padding:0 8px">
         <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block"></span>
         <span id="sync-text">–</span>
+      </div>
+      <!-- NOTIFICATION BELL -->
+      <div style="position:relative">
+        <button onclick="toggleNotifications()" style="background:none;border:none;color:var(--text);font-size:1.2rem;cursor:pointer;padding:4px 8px;position:relative" title="Notifications">
+          🔔
+          <span id="notif-badge" style="display:none;position:absolute;top:0;right:0;background:var(--red);color:#fff;font-size:0.55rem;padding:1px 5px;border-radius:10px;font-weight:700;line-height:1.4">0</span>
+        </button>
+        <div id="notif-panel" style="display:none;position:absolute;right:0;top:44px;width:320px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px #00000060;z-index:300;max-height:400px;overflow-y:auto">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <span style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:2px">NOTIFICATIONS</span>
+            <button onclick="clearNotifications()" style="background:none;border:none;color:var(--muted);font-size:0.65rem;cursor:pointer;letter-spacing:1px">CLEAR ALL</button>
+          </div>
+          <div id="notif-list" style="padding:8px 0"></div>
+        </div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
       <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:0.65rem">Sign Out</button>
@@ -387,6 +407,18 @@
         <div class="home-card-desc">Visual breakdown of earnings, expenses, and business growth.</div>
         <div class="home-card-arrow">→</div>
       </div>
+      <div class="home-card" onclick="showTab('employees')" style="--card-accent:#f472b6">
+        <div class="home-card-icon">👷</div>
+        <div class="home-card-title">EMPLOYEES</div>
+        <div class="home-card-desc">Manage your team, track individual performance and revenue.</div>
+        <div class="home-card-arrow">→</div>
+      </div>
+      <div class="home-card" onclick="showTab('pending')" style="--card-accent:#fbbf24">
+        <div class="home-card-icon">⏳</div>
+        <div class="home-card-title">PENDING APPROVAL</div>
+        <div class="home-card-desc">Review employee applications and edit requests waiting for approval.</div>
+        <div class="home-card-arrow">→</div>
+      </div>
     </div>
   </div>
 
@@ -410,6 +442,7 @@
           <th onclick="sortTable('income','tips')">Tips ↕</th>
           <th onclick="sortTable('income','status')">Status ↕</th>
           <th onclick="sortTable('income','mileage')">Miles ↕</th>
+          <th>Employee(s)</th>
           <th>Notes</th>
           <th>Link</th>
           <th></th>
@@ -436,6 +469,7 @@
           <th onclick="sortTable('expense','category')">Category ↕</th>
           <th onclick="sortTable('expense','description')">Description ↕</th>
           <th onclick="sortTable('expense','amount')">Amount ↕</th>
+          <th>Employee</th>
           <th>Notes</th>
           <th></th>
         </tr></thead>
@@ -482,7 +516,7 @@
       <div class="section-head-title" style="margin-bottom:14px">UPCOMING EVENTS</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th></th></tr></thead>
+          <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th>Status</th><th></th></tr></thead>
           <tbody id="schedule-tbody"></tbody>
         </table>
       </div>
@@ -503,7 +537,53 @@
 
   <!-- ═══════════════ PHOTOS (REMOVED - replaced by customer profiles) ═══════════════ -->
 
-  <!-- ═══════════════ CUSTOMER PROFILE ═══════════════ -->
+  <!-- ═══════════════ EMPLOYEES ═══════════════ -->
+  <div class="tab-content" id="tab-employees">
+    <div class="stats-row" id="employee-stats"></div>
+    <div class="section-head">
+      <div class="section-head-title">TEAM</div>
+    </div>
+    <div id="employee-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px"></div>
+    <div id="employee-profile-view" style="display:none;margin-top:20px"></div>
+  </div>
+
+  <!-- ═══════════════ PENDING APPROVAL ═══════════════ -->
+  <div class="tab-content" id="tab-pending">
+    <div class="section-head">
+      <div class="section-head-title">PENDING APPROVAL</div>
+      <div id="pending-count-badge" style="font-size:0.7rem;color:var(--muted)"></div>
+    </div>
+    <!-- Section 1: New Applications -->
+    <div style="margin-bottom:28px">
+      <div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:2px;margin-bottom:14px">NEW EMPLOYEE APPLICATIONS</div>
+      <div id="pending-applications"></div>
+    </div>
+    <!-- Section 2: Edit Requests -->
+    <div>
+      <div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:2px;margin-bottom:14px">EDIT REQUESTS</div>
+      <div id="pending-edits"></div>
+    </div>
+  </div>
+
+  <!-- Employee Profile (full screen overlay within main) -->
+  <div id="employee-profile-page" style="display:none;padding:28px 24px;max-width:var(--content-max)">
+    <button class="btn btn-ghost btn-sm" onclick="closeEmployeeProfile()" style="margin-bottom:20px">← Back to Employees</button>
+    <div id="emp-profile-header"></div>
+    <div style="margin-top:24px">
+      <div class="section-head-title" style="margin-bottom:14px">JOB HISTORY</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Customer</th><th>Services</th><th>Amount</th><th>Tips</th><th>Split Credit</th><th>Status</th></tr></thead>
+        <tbody id="emp-jobs-tbody"></tbody>
+      </table></div>
+    </div>
+    <div style="margin-top:24px">
+      <div class="section-head-title" style="margin-bottom:14px">EXPENSE HISTORY</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Amount</th><th>Vendor</th></tr></thead>
+        <tbody id="emp-expenses-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
   <div id="customer-profile">
     <div style="padding:32px 32px 0">
       <button class="btn btn-ghost btn-sm" onclick="closeProfile()" style="margin-bottom:20px">← Back to Customers</button>
@@ -714,6 +794,103 @@
   </div>
 </div>
 
+<!-- Employee First-Time Setup Modal -->
+<div class="modal-overlay" id="modal-employee-setup" style="z-index:250">
+  <div class="modal">
+    <div class="modal-title">COMPLETE YOUR PROFILE</div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:18px;line-height:1.6">Welcome! Your account is pending admin approval. Please fill in your details below.</p>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name</label><input type="text" id="emp-setup-name" placeholder="Your full name"/></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="emp-setup-phone" placeholder="(555) 123-4567"/></div>
+      <div class="form-group"><label>Gmail (auto-filled)</label><input type="text" id="emp-setup-gmail" readonly style="opacity:0.6"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-accent" onclick="submitEmployeeApplication()">Submit Application</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pending: Edit Application (Admin edits an applicant's info) -->
+<div class="modal-overlay" id="modal-edit-application">
+  <div class="modal">
+    <div class="modal-title">EDIT APPLICATION</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name</label><input type="text" id="ea-name" placeholder="Full name"/></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="ea-phone" placeholder="(555) 123-4567"/></div>
+      <div class="form-group"><label>Gmail</label><input type="text" id="ea-gmail" readonly style="opacity:0.6"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-application')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveApplicationEdit()">Save & Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pending: Review Edit Request (Admin reviews proposed changes) -->
+<div class="modal-overlay" id="modal-review-edit">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">REVIEW EDIT REQUEST</div>
+    <div id="review-edit-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('review-edit')">Cancel</button>
+      <button class="btn btn-ghost" onclick="rejectPendingEdit()" style="border-color:var(--red);color:var(--red)">✕ Reject</button>
+      <button class="btn btn-ghost" onclick="editPendingEdit()" style="border-color:var(--yellow);color:var(--yellow)">✎ Edit</button>
+      <button class="btn btn-accent" onclick="approvePendingEdit()">✓ Approve</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee assign modal (for adding employees to a job) -->
+<div class="modal-overlay" id="modal-assign-employees">
+  <div class="modal">
+    <div class="modal-title">ASSIGN EMPLOYEES</div>
+    <p style="font-size:0.72rem;color:var(--muted);margin-bottom:16px">Select all employees who worked this job. Revenue will be split equally.</p>
+    <div id="assign-employee-list" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('assign-employees')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveJobEmployees()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Employee profile edit modal (admin editing an employee's info) -->
+<div class="modal-overlay" id="modal-edit-employee">
+  <div class="modal">
+    <div class="modal-title">EDIT EMPLOYEE</div>
+    <div class="form-grid">
+      <div class="form-group full"><label>Full Name</label><input type="text" id="ee-name" placeholder="Full name"/></div>
+      <div class="form-group"><label>Phone</label><input type="tel" id="ee-phone" placeholder="(555) 123-4567"/></div>
+      <div class="form-group"><label>Gmail</label><input type="text" id="ee-gmail" readonly style="opacity:0.6"/></div>
+      <div class="form-group"><label>Employment Date</label><input type="date" id="ee-date"/></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('edit-employee')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveEmployeeEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Mark Complete Modal -->
+<div class="modal-overlay" id="modal-mark-complete">
+  <div class="modal">
+    <div class="modal-title">✓ MARK JOB COMPLETE</div>
+    <div id="complete-job-summary" style="background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:0.73rem;line-height:1.8;color:var(--muted)"></div>
+    <div class="form-grid">
+      <div class="form-group"><label>Amount ($)</label><input type="number" id="mc-amount" placeholder="0.00"/></div>
+      <div class="form-group"><label>Tips ($)</label><input type="number" id="mc-tips" placeholder="0.00"/></div>
+      <div class="form-group"><label>Mileage</label><input type="number" id="mc-mileage" placeholder="0"/></div>
+      <div class="form-group"><label>Status</label>
+        <select id="mc-status"><option>Completed</option><option>Cancelled</option></select>
+      </div>
+      <div class="form-group full"><label>Notes</label><textarea id="mc-notes" placeholder="Any additional notes..."></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('mark-complete')">Cancel</button>
+      <button class="btn btn-accent" onclick="saveMarkComplete()">✓ Complete & Add to Income</button>
+    </div>
+  </div>
+</div>
+
 <!-- Lightbox -->
 <div class="modal-overlay" id="modal-lightbox" onclick="closeModal('lightbox')">
   <div style="max-width:90vw;max-height:90vh;position:relative" onclick="event.stopPropagation()">
@@ -764,11 +941,15 @@ const CLIENT_ID   = '1077914957013-5vd6neifr7vqcvu01c12mtdqko4ihfmq.apps.googleu
 const SHEET_ID    = '1YKFPcaNMqzpFNvF_rz8Cxry8DVv2RfhTsvnY4_us0dI';
 const SCOPES      = 'https://www.googleapis.com/auth/spreadsheets';
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
-const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers' };
-const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes'];
-const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes'];
-const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes'];
+const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
+const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications' };
+const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
+const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
+const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId'];
 const CUSTOMER_HEADERS = ['id','name','phone','email','address','tag','notes'];
+const EMPLOYEE_HEADERS = ['id','gmail','name','phone','employmentDate','status'];
+const PENDING_HEADERS  = ['id','type','submittedBy','submittedByName','timestamp','dataType','recordId','originalData','newData','status','adminNote'];
+const NOTIF_HEADERS    = ['id','toEmail','message','type','timestamp','read'];
 
 let accessToken = null;
 let tokenClient = null;
@@ -805,14 +986,15 @@ window.onload = function() {
 };
 
 function loadPreviewData() {
+  currentUser = { email: ADMIN_EMAIL, name: 'James Freeman', isAdmin: true };
   incomeData = [
-    {id:1,date:'2025-05-01',customerId:1,customer:'Mike Johnson',services:['Driveway','Sidewalk'],service:'Driveway, Sidewalk',amount:250,tips:20,mileage:12,status:'Completed',notes:'Repeat customer',link:''},
-    {id:2,date:'2025-05-07',customerId:2,customer:'Sarah Lee',services:['House Wash'],service:'House Wash',amount:400,tips:40,mileage:18,status:'Completed',notes:'Two story',link:''},
-    {id:3,date:'2025-05-12',customerId:null,customer:'Tom Rivera',services:['Deck/Patio'],service:'Deck/Patio',amount:175,tips:0,mileage:8,status:'Pending',notes:'',link:''},
+    {id:1,date:'2025-05-01',customerId:1,customer:'Mike Johnson',services:['Driveway','Sidewalk'],service:'Driveway, Sidewalk',amount:250,tips:20,mileage:12,status:'Completed',notes:'Repeat customer',link:'',employeeEmails:[ADMIN_EMAIL],employeeNames:['James']},
+    {id:2,date:'2025-05-07',customerId:2,customer:'Sarah Lee',services:['House Wash'],service:'House Wash',amount:400,tips:40,mileage:18,status:'Completed',notes:'Two story',link:'',employeeEmails:[ADMIN_EMAIL],employeeNames:['James']},
+    {id:3,date:'2025-05-12',customerId:null,customer:'Tom Rivera',services:['Deck/Patio'],service:'Deck/Patio',amount:175,tips:0,mileage:8,status:'Pending',notes:'',link:'',employeeEmails:[],employeeNames:[]},
   ];
   expenseData = [
-    {id:1,date:'2025-05-03',category:'Supplies / Chemicals',description:'Detergent & nozzles',amount:85,vendor:'Walmart',notes:''},
-    {id:2,date:'2025-05-08',category:'Fuel',description:'Gas fill-up',amount:62,vendor:'Shell',notes:''},
+    {id:1,date:'2025-05-03',category:'Supplies / Chemicals',description:'Detergent & nozzles',amount:85,vendor:'Walmart',notes:'',employeeEmail:ADMIN_EMAIL,employeeName:'James'},
+    {id:2,date:'2025-05-08',category:'Fuel',description:'Gas fill-up',amount:62,vendor:'Shell',notes:'',employeeEmail:ADMIN_EMAIL,employeeName:'James'},
   ];
   scheduleData = [
     {id:1,date:'2025-05-15',time:'09:00',title:'Driveway job – Davis',customer:'Chris Davis',type:'Job',services:['Driveway'],phone:'(555) 123-4567',email:'',address:'14 Oak St',notes:''},
@@ -822,7 +1004,13 @@ function loadPreviewData() {
     {id:1,name:'Mike Johnson',phone:'(555) 111-2222',email:'mike@email.com',address:'22 Birch Rd, Newfield, NJ',tag:'Regular',notes:'Prefers morning calls'},
     {id:2,name:'Sarah Lee',phone:'(555) 333-4444',email:'sarah@email.com',address:'7 Maple Ave, Vineland, NJ',tag:'VIP',notes:''},
   ];
+  employeeData = [
+    {id:1,gmail:ADMIN_EMAIL,name:'James Freeman',phone:'(555) 000-0001',employmentDate:'2024-01-01',status:'approved'},
+  ];
+  pendingData = [];
+  notifData   = [];
   setSyncStatus('Preview mode','var(--purple)');
+  updateNotificationBadge();
   renderHomeStats();
 }
 
@@ -872,6 +1060,28 @@ function hideLoginScreen() {
   if (sd) sd.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
 }
 
+async function identifyUser() {
+  if (IS_PREVIEW) {
+    currentUser = { email: ADMIN_EMAIL, name: 'James Freeman', isAdmin: true };
+    return;
+  }
+  try {
+    const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: 'Bearer ' + accessToken }
+    });
+    const info = await r.json();
+    currentUser.email = (info.email || '').toLowerCase();
+    currentUser.name  = info.name || '';
+    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+    sessionStorage.setItem('userEmail', currentUser.email);
+    sessionStorage.setItem('userName', currentUser.name);
+  } catch(e) {
+    currentUser.email = sessionStorage.getItem('userEmail') || '';
+    currentUser.name  = sessionStorage.getItem('userName') || '';
+    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+  }
+}
+
 // ═══════════════ SHEETS API ═══════════════
 async function sheetsGet(range) {
   const r = await fetch(API_BASE+'/values/'+encodeURIComponent(range), {
@@ -903,6 +1113,11 @@ function rowToObj(headers, row) {
     if (key==='id') v = v ? (isNaN(+v) ? v : +v) : Date.now();
     if (key==='customerId') v = v ? +v : null;
     if (key==='services') v = v ? v.split('|').filter(Boolean) : [];
+    if (key==='employeeEmails') v = v ? v.split('|').filter(Boolean) : [];
+    if (key==='employeeNames')  v = v ? v.split('|').filter(Boolean) : [];
+    if (['originalData','newData'].includes(key)) { try { v = v ? JSON.parse(v) : {}; } catch{ v={}; } }
+    if (key==='read') v = v === 'true' || v === true;
+    if (key==='completed') v = v === 'true' || v === true;
     obj[key] = v;
   });
   if (obj.services && obj.services.length) obj.service = obj.services.join(', ');
@@ -912,6 +1127,9 @@ function rowToObj(headers, row) {
 function objToRow(headers, obj) {
   return headers.map(key => {
     if (key==='services') return Array.isArray(obj.services) ? obj.services.join('|') : (obj.service||'');
+    if (key==='employeeEmails') return Array.isArray(obj.employeeEmails) ? obj.employeeEmails.join('|') : '';
+    if (key==='employeeNames')  return Array.isArray(obj.employeeNames)  ? obj.employeeNames.join('|')  : '';
+    if (['originalData','newData'].includes(key)) return obj[key] ? JSON.stringify(obj[key]) : '';
     const v = obj[key];
     return (v !== undefined && v !== null) ? String(v) : '';
   });
@@ -936,32 +1154,52 @@ async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await ensureSheets();
-    const [incRows,expRows,schRows,cusRows] = await Promise.all([
-      sheetsGet(SHEETS.income+'!A1:K'),
-      sheetsGet(SHEETS.expenses+'!A1:G'),
+    await identifyUser();
+    const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
+      sheetsGet(SHEETS.income+'!A1:M'),
+      sheetsGet(SHEETS.expenses+'!A1:I'),
       sheetsGet(SHEETS.schedule+'!A1:K'),
       sheetsGet(SHEETS.customers+'!A1:G'),
+      sheetsGet(SHEETS.employees+'!A1:F'),
+      sheetsGet(SHEETS.pending+'!A1:K'),
+      sheetsGet(SHEETS.notifications+'!A1:F'),
     ]);
     const parse = (rows, headers) => rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : null;
     const fromSheet = {
-      income:   parse(incRows, INCOME_HEADERS),
-      expenses: parse(expRows, EXPENSE_HEADERS),
-      schedule: parse(schRows, SCHEDULE_HEADERS),
-      customers:parse(cusRows, CUSTOMER_HEADERS),
+      income:    parse(incRows,    INCOME_HEADERS),
+      expenses:  parse(expRows,    EXPENSE_HEADERS),
+      schedule:  parse(schRows,    SCHEDULE_HEADERS),
+      customers: parse(cusRows,    CUSTOMER_HEADERS),
+      employees: parse(empRows,    EMPLOYEE_HEADERS),
+      pending:   parse(penRows,    PENDING_HEADERS),
+      notifs:    parse(notifRows,  NOTIF_HEADERS),
     };
-    // Use sheet data if it exists, else fall back to localStorage (for first-time migration)
-    incomeData   = fromSheet.income   || load('pw_income',[]);
-    expenseData  = fromSheet.expenses || load('pw_expenses',[]);
-    scheduleData = fromSheet.schedule || load('pw_schedule',[]);
-    customerData = fromSheet.customers|| load('pw_customers',[]);
-    // If first time (sheet was empty), write headers + migrate localStorage data
+    incomeData   = fromSheet.income    || load('pw_income',[]);
+    expenseData  = fromSheet.expenses  || load('pw_expenses',[]);
+    scheduleData = fromSheet.schedule  || load('pw_schedule',[]);
+    customerData = fromSheet.customers || load('pw_customers',[]);
+    employeeData = fromSheet.employees || [];
+    pendingData  = fromSheet.pending   || [];
+    notifData    = fromSheet.notifs    || [];
+
     const writes = [];
     if (!fromSheet.income)    writes.push(syncSheet('income'));
     if (!fromSheet.expenses)  writes.push(syncSheet('expenses'));
     if (!fromSheet.schedule)  writes.push(syncSheet('schedule'));
     if (!fromSheet.customers) writes.push(syncSheet('customers'));
+    if (!fromSheet.employees) writes.push(syncSheet('employees'));
+    if (!fromSheet.pending)   writes.push(syncSheet('pending'));
+    if (!fromSheet.notifs)    writes.push(syncSheet('notifications'));
     if (writes.length) await Promise.all(writes);
+
     setSyncStatus('Synced ✓','var(--accent)');
+
+    // Check if this non-admin user needs to set up their profile or is pending
+    if (!currentUser.isAdmin) {
+      await checkEmployeeStatus();
+    }
+
+    updateNotificationBadge();
     renderHomeStats();
     const active = document.querySelector('.tab-content.active');
     if (active) {
@@ -971,6 +1209,8 @@ async function loadAllData() {
       if (tab==='schedule') renderCalendar();
       if (tab==='customers') renderCustomers();
       if (tab==='reports') renderReports();
+      if (tab==='employees') renderEmployees();
+      if (tab==='pending') renderPending();
     }
   } catch(e) {
     setSyncStatus('Offline – local data','var(--red)');
@@ -979,33 +1219,37 @@ async function loadAllData() {
     expenseData  = load('pw_expenses',[]);
     scheduleData = load('pw_schedule',[]);
     customerData = load('pw_customers',[]);
+    employeeData = [];
+    pendingData  = [];
+    notifData    = [];
+    if (!currentUser.isAdmin) await checkEmployeeStatus();
+    updateNotificationBadge();
     renderHomeStats();
   }
 }
 
 async function syncSheet(type) {
-  // In preview mode just update the in-memory data, no API calls
-  if (IS_PREVIEW) {
-    setSyncStatus('Preview mode','var(--purple)');
-    return;
-  }
+  if (IS_PREVIEW) { setSyncStatus('Preview mode','var(--purple)'); return; }
   const map = {
-    income:   { headers:INCOME_HEADERS,   data:incomeData,   sheet:SHEETS.income },
-    expenses: { headers:EXPENSE_HEADERS,  data:expenseData,  sheet:SHEETS.expenses },
-    schedule: { headers:SCHEDULE_HEADERS, data:scheduleData, sheet:SHEETS.schedule },
-    customers:{ headers:CUSTOMER_HEADERS, data:customerData, sheet:SHEETS.customers },
+    income:        { headers:INCOME_HEADERS,   data:incomeData,   sheet:SHEETS.income },
+    expenses:      { headers:EXPENSE_HEADERS,  data:expenseData,  sheet:SHEETS.expenses },
+    schedule:      { headers:SCHEDULE_HEADERS, data:scheduleData, sheet:SHEETS.schedule },
+    customers:     { headers:CUSTOMER_HEADERS, data:customerData, sheet:SHEETS.customers },
+    employees:     { headers:EMPLOYEE_HEADERS, data:employeeData, sheet:SHEETS.employees },
+    pending:       { headers:PENDING_HEADERS,  data:pendingData,  sheet:SHEETS.pending },
+    notifications: { headers:NOTIF_HEADERS,    data:notifData,    sheet:SHEETS.notifications },
   };
-  const { headers, data, sheet } = map[type];
+  const entry = map[type]; if (!entry) return;
+  const { headers, data, sheet } = entry;
   setSyncStatus('Saving...','var(--yellow)');
   try {
     const rows = [headers, ...data.map(obj=>objToRow(headers,obj))];
     await sheetsWrite(sheet, rows);
-    save('pw_'+type, data);
+    if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
     setSyncStatus('Saved ✓','var(--accent)');
     setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
   } catch(e) {
     setSyncStatus('Save failed','var(--red)');
-    save('pw_'+type, data); // at least save locally
     console.error('syncSheet error:', e);
   }
 }
@@ -1015,7 +1259,16 @@ let incomeData   = [];
 let expenseData  = [];
 let scheduleData = [];
 let customerData = [];
+let employeeData = [];   // approved employees
+let pendingData  = [];   // pending applications + edit requests
+let notifData    = [];   // notifications
 let jobPhotos    = load('pw_job_photos', {});
+
+// Current signed-in user
+let currentUser  = { email: '', name: '', isAdmin: false };
+let assignJobId  = null;  // job being assigned employees
+let editingPendingId = null; // pending record being reviewed
+let editingEmployeeId = null;
 
 let calMonth = new Date().getMonth();
 let calYear  = new Date().getFullYear();
@@ -1042,6 +1295,541 @@ function getJobsForCustomer(c) {
   });
 }
 
+// ═══════════════ EMPLOYEE SYSTEM ═══════════════
+
+async function checkEmployeeStatus() {
+  if (IS_PREVIEW || currentUser.isAdmin) return;
+  const email = currentUser.email;
+  // Check if approved employee
+  const approved = employeeData.find(e => e.gmail.toLowerCase() === email && e.status === 'approved');
+  if (approved) return; // good to go
+  // Check if already applied (pending)
+  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy.toLowerCase() === email && p.status === 'pending');
+  if (applied) {
+    showPendingMessage();
+    return;
+  }
+  // New user — show setup modal
+  document.getElementById('emp-setup-gmail').value = currentUser.email;
+  document.getElementById('emp-setup-name').value = currentUser.name || '';
+  document.getElementById('modal-employee-setup').classList.add('open');
+}
+
+function showPendingMessage() {
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('login-status').textContent = 'Your application is pending admin approval. Please check back later.';
+  document.getElementById('sign-in-btn').style.display = 'none';
+}
+
+async function submitEmployeeApplication() {
+  const name  = document.getElementById('emp-setup-name').value.trim();
+  const phone = document.getElementById('emp-setup-phone').value.trim();
+  if (!name) { alert('Please enter your name.'); return; }
+  const app = {
+    id: Date.now(),
+    type: 'application',
+    submittedBy: currentUser.email,
+    submittedByName: name,
+    timestamp: new Date().toISOString(),
+    dataType: 'employee',
+    recordId: '',
+    originalData: {},
+    newData: { gmail: currentUser.email, name, phone },
+    status: 'pending',
+    adminNote: '',
+  };
+  pendingData.push(app);
+  await syncSheet('pending');
+  // Notify admin
+  await addNotification(ADMIN_EMAIL, name + ' (' + currentUser.email + ') submitted an employee application.', 'application');
+  closeModal('employee-setup');
+  showPendingMessage();
+}
+
+// ── NOTIFICATIONS ──
+function toggleNotifications() {
+  const panel = document.getElementById('notif-panel');
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if (panel.style.display === 'block') renderNotifications();
+  // Close when clicking outside
+  if (panel.style.display === 'block') {
+    setTimeout(() => document.addEventListener('click', closeNotifOnClickOutside), 10);
+  }
+}
+
+function closeNotifOnClickOutside(e) {
+  const panel = document.getElementById('notif-panel');
+  if (!panel.contains(e.target) && !e.target.closest('[onclick="toggleNotifications()"]')) {
+    panel.style.display = 'none';
+    document.removeEventListener('click', closeNotifOnClickOutside);
+  }
+}
+
+function renderNotifications() {
+  const myNotifs = notifData.filter(n => n.toEmail.toLowerCase() === currentUser.email.toLowerCase())
+    .sort((a,b) => b.timestamp.localeCompare(a.timestamp));
+  const list = document.getElementById('notif-list');
+  if (!myNotifs.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted);font-size:0.72rem">No notifications</div>';
+    return;
+  }
+  list.innerHTML = myNotifs.map(n => {
+    const typeIcon = n.type==='application'?'👷':n.type==='approved'?'✅':n.type==='rejected'?'❌':n.type==='edited'?'✎':'📋';
+    const bg = n.read ? '' : 'background:var(--accent)08;';
+    return '<div style="'+bg+'padding:12px 18px;border-bottom:1px solid var(--border);cursor:pointer" onclick="markNotifRead('+n.id+')">'+
+      '<div style="display:flex;gap:10px;align-items:flex-start">'+
+        '<span style="font-size:1rem;margin-top:1px">'+typeIcon+'</span>'+
+        '<div>'+
+          '<div style="font-size:0.72rem;color:'+(n.read?'var(--muted)':'var(--text)')+'">'+h(n.message)+'</div>'+
+          '<div style="font-size:0.6rem;color:var(--muted);margin-top:3px">'+new Date(n.timestamp).toLocaleString()+'</div>'+
+        '</div>'+
+        (!n.read ? '<span style="margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:5px"></span>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+function updateNotificationBadge() {
+  const unread = notifData.filter(n => n.toEmail.toLowerCase() === currentUser.email.toLowerCase() && !n.read).length;
+  const badge = document.getElementById('notif-badge');
+  const navBadge = document.getElementById('nav-pending-badge');
+  if (badge) { badge.style.display = unread ? 'block' : 'none'; badge.textContent = unread; }
+  // Also update pending count badge
+  const pendingCount = pendingData.filter(p => p.status === 'pending').length;
+  if (navBadge) { navBadge.style.display = pendingCount && currentUser.isAdmin ? 'inline-block' : 'none'; navBadge.textContent = pendingCount; }
+}
+
+async function markNotifRead(id) {
+  const n = notifData.find(x => x.id == id);
+  if (n) { n.read = true; await syncSheet('notifications'); updateNotificationBadge(); renderNotifications(); }
+}
+
+async function clearNotifications() {
+  notifData = notifData.filter(n => n.toEmail.toLowerCase() !== currentUser.email.toLowerCase());
+  await syncSheet('notifications');
+  updateNotificationBadge();
+  renderNotifications();
+}
+
+async function addNotification(toEmail, message, type) {
+  const n = { id: Date.now(), toEmail, message, type, timestamp: new Date().toISOString(), read: false };
+  notifData.push(n);
+  await syncSheet('notifications');
+  updateNotificationBadge();
+}
+
+// ── PENDING SYSTEM ──
+async function submitEditRequest(dataType, recordId, originalData, newData) {
+  const req = {
+    id: Date.now(),
+    type: 'edit',
+    submittedBy: currentUser.email,
+    submittedByName: currentUser.name || currentUser.email,
+    timestamp: new Date().toISOString(),
+    dataType,
+    recordId: String(recordId),
+    originalData,
+    newData,
+    status: 'pending',
+    adminNote: '',
+  };
+  pendingData.push(req);
+  await syncSheet('pending');
+  await addNotification(ADMIN_EMAIL,
+    (currentUser.name||currentUser.email) + ' requested an edit to a ' + dataType + ' record.',
+    'edit_request'
+  );
+  updateNotificationBadge();
+  alert('Your edit has been submitted for admin approval.');
+}
+
+function renderPending() {
+  // Applications
+  const apps = pendingData.filter(p => p.type === 'application' && p.status === 'pending');
+  const appEl = document.getElementById('pending-applications');
+  if (!apps.length) {
+    appEl.innerHTML = '<div style="color:var(--muted);font-size:0.73rem;padding:16px 0">No pending applications</div>';
+  } else {
+    appEl.innerHTML = apps.map(p => {
+      const nd = p.newData || {};
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:12px">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">'+
+          '<div>'+
+            '<div style="font-family:var(--font-display);font-size:1.1rem;color:#e8edf8;letter-spacing:1px">'+h(nd.name||'Unknown')+'</div>'+
+            '<div style="font-size:0.7rem;color:var(--muted);margin-top:4px;line-height:1.8">'+
+              '✉️ '+h(nd.gmail||p.submittedBy)+'<br>'+
+              (nd.phone ? '📞 '+h(nd.phone)+'<br>' : '')+
+              '🕐 Applied: '+new Date(p.timestamp).toLocaleString()+
+            '</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+            (currentUser.isAdmin ? [
+              '<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow)" onclick="openEditApplication('+p.id+')">✎ Edit</button>',
+              '<button class="btn btn-red btn-sm" onclick="declineApplication('+p.id+')">✕ Decline</button>',
+              '<button class="btn btn-accent btn-sm" onclick="approveApplication('+p.id+')">✓ Accept</button>',
+            ].join('') : '<span style="font-size:0.68rem;color:var(--yellow)">⏳ Pending review</span>')+
+          '</div>'+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // Edit requests
+  const edits = pendingData.filter(p => p.type === 'edit' && p.status === 'pending');
+  const editEl = document.getElementById('pending-edits');
+  if (!edits.length) {
+    editEl.innerHTML = '<div style="color:var(--muted);font-size:0.73rem;padding:16px 0">No pending edit requests</div>';
+  } else {
+    editEl.innerHTML = edits.map(p => {
+      const orig = p.originalData || {};
+      const newD = p.newData || {};
+      const changedKeys = Object.keys(newD).filter(k => JSON.stringify(orig[k]) !== JSON.stringify(newD[k]));
+      return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px 24px;margin-bottom:12px">'+
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:14px">'+
+          '<div>'+
+            '<div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:1px">'+h(p.dataType.toUpperCase())+' EDIT REQUEST</div>'+
+            '<div style="font-size:0.68rem;color:var(--muted);margin-top:3px">By '+h(p.submittedByName||p.submittedBy)+' • '+new Date(p.timestamp).toLocaleString()+'</div>'+
+          '</div>'+
+          '<div style="display:flex;gap:8px;flex-wrap:wrap">'+
+            (currentUser.isAdmin ? [
+              '<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow)" onclick="openReviewEdit('+p.id+')">✎ Review</button>',
+              '<button class="btn btn-red btn-sm" onclick="rejectEditById('+p.id+')">✕ Reject</button>',
+              '<button class="btn btn-accent btn-sm" onclick="approveEditById('+p.id+')">✓ Approve</button>',
+            ].join('') : '<span style="font-size:0.68rem;color:var(--yellow)">⏳ Pending review</span>')+
+          '</div>'+
+        '</div>'+
+        '<div style="background:var(--surface2);border-radius:8px;padding:12px 16px;font-size:0.7rem">'+
+          changedKeys.map(k =>
+            '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;padding:4px 0;border-bottom:1px solid var(--border)">'+
+              '<span style="color:var(--muted)">'+h(k)+'</span>'+
+              '<span style="color:var(--red);text-decoration:line-through">'+h(String(orig[k]||'—'))+'</span>'+
+              '<span style="color:var(--accent)">'+h(String(newD[k]||'—'))+'</span>'+
+            '</div>'
+          ).join('')+
+        '</div>'+
+      '</div>';
+    }).join('');
+  }
+
+  // Update count
+  const total = apps.length + edits.length;
+  document.getElementById('pending-count-badge').textContent = total ? total + ' item'+(total>1?'s':'')+' awaiting review' : 'Nothing pending';
+  updateNotificationBadge();
+}
+
+// Application actions
+function openEditApplication(id) {
+  const p = pendingData.find(x => x.id == id);
+  if (!p) return;
+  editingPendingId = id;
+  document.getElementById('ea-name').value  = p.newData.name || '';
+  document.getElementById('ea-phone').value = p.newData.phone || '';
+  document.getElementById('ea-gmail').value = p.newData.gmail || p.submittedBy;
+  document.getElementById('modal-edit-application').classList.add('open');
+}
+
+async function saveApplicationEdit() {
+  const p = pendingData.find(x => x.id == editingPendingId); if (!p) return;
+  p.newData.name  = document.getElementById('ea-name').value.trim();
+  p.newData.phone = document.getElementById('ea-phone').value.trim();
+  closeModal('edit-application');
+  await approveApplication(editingPendingId);
+}
+
+async function approveApplication(id) {
+  const p = pendingData.find(x => x.id == id); if (!p) return;
+  p.status = 'approved';
+  const emp = {
+    id: Date.now(),
+    gmail: p.newData.gmail || p.submittedBy,
+    name: p.newData.name || p.submittedByName,
+    phone: p.newData.phone || '',
+    employmentDate: new Date().toISOString().split('T')[0],
+    status: 'approved',
+  };
+  employeeData.push(emp);
+  await Promise.all([syncSheet('pending'), syncSheet('employees')]);
+  await addNotification(p.submittedBy, 'Your employee application has been approved! Welcome to the team.', 'approved');
+  renderPending();
+  renderEmployees();
+}
+
+async function declineApplication(id) {
+  const p = pendingData.find(x => x.id == id); if (!p) return;
+  p.status = 'declined';
+  await syncSheet('pending');
+  await addNotification(p.submittedBy, 'Your employee application was not approved at this time.', 'rejected');
+  renderPending();
+}
+
+// Edit request actions
+function openReviewEdit(id) {
+  const p = pendingData.find(x => x.id == id); if (!p) return;
+  editingPendingId = id;
+  const orig = p.originalData || {};
+  const newD = p.newData || {};
+  const changedKeys = Object.keys(newD).filter(k => JSON.stringify(orig[k]) !== JSON.stringify(newD[k]));
+  document.getElementById('review-edit-content').innerHTML =
+    '<p style="font-size:0.7rem;color:var(--muted);margin-bottom:12px">Requested by <strong>'+h(p.submittedByName||p.submittedBy)+'</strong> • '+h(p.dataType)+' record</p>'+
+    '<div style="background:var(--surface2);border-radius:8px;padding:14px;font-size:0.72rem;margin-bottom:12px">'+
+      '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;margin-bottom:6px">'+
+        '<span style="color:var(--muted);font-size:0.6rem;letter-spacing:1px;text-transform:uppercase">Field</span>'+
+        '<span style="color:var(--red);font-size:0.6rem;letter-spacing:1px;text-transform:uppercase">Current</span>'+
+        '<span style="color:var(--accent);font-size:0.6rem;letter-spacing:1px;text-transform:uppercase">Proposed</span>'+
+      '</div>'+
+      changedKeys.map(k =>
+        '<div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px;padding:5px 0;border-top:1px solid var(--border)">'+
+          '<span style="color:var(--muted)">'+h(k)+'</span>'+
+          '<span style="color:var(--red)">'+h(String(orig[k]||'—'))+'</span>'+
+          '<span style="color:var(--accent)">'+h(String(newD[k]||'—'))+'</span>'+
+        '</div>'
+      ).join('')+
+    '</div>';
+  document.getElementById('modal-review-edit').classList.add('open');
+}
+
+async function approvePendingEdit() {
+  const p = pendingData.find(x => x.id == editingPendingId); if (!p) return;
+  // Apply the edit to the actual data
+  const newD = p.newData;
+  if (p.dataType === 'customer') {
+    const idx = customerData.findIndex(x => x.id == p.recordId);
+    if (idx !== -1) { customerData[idx] = {...customerData[idx], ...newD}; await syncSheet('customers'); }
+  } else if (p.dataType === 'income') {
+    const idx = incomeData.findIndex(x => x.id == p.recordId);
+    if (idx !== -1) { incomeData[idx] = {...incomeData[idx], ...newD}; await syncSheet('income'); }
+  } else if (p.dataType === 'expense') {
+    const idx = expenseData.findIndex(x => x.id == p.recordId);
+    if (idx !== -1) { expenseData[idx] = {...expenseData[idx], ...newD}; await syncSheet('expenses'); }
+  }
+  p.status = 'approved';
+  await syncSheet('pending');
+  await addNotification(p.submittedBy, 'Your edit request for a '+p.dataType+' record was approved.', 'approved');
+  closeModal('review-edit');
+  renderPending();
+  renderIncome(); renderExpenses(); renderCustomers();
+}
+
+async function rejectPendingEdit() {
+  await rejectEditById(editingPendingId);
+  closeModal('review-edit');
+}
+
+async function rejectEditById(id) {
+  const p = pendingData.find(x => x.id == id); if (!p) return;
+  p.status = 'rejected';
+  await syncSheet('pending');
+  await addNotification(p.submittedBy, 'Your edit request for a '+p.dataType+' record was not approved.', 'rejected');
+  renderPending();
+}
+
+async function approveEditById(id) {
+  editingPendingId = id;
+  await approvePendingEdit();
+}
+
+function editPendingEdit() {
+  // Admin edits the proposed values before approving — open the relevant edit modal
+  const p = pendingData.find(x => x.id == editingPendingId); if (!p) return;
+  closeModal('review-edit');
+  // For now, approve with existing proposed data (admin can edit inline via the review panel)
+  approvePendingEdit();
+}
+
+// ── EMPLOYEES TAB ──
+function renderEmployees() {
+  const approved = employeeData.filter(e => e.status === 'approved');
+  const totalRevByEmp = {};
+  const jobCountByEmp = {};
+  const expByEmp = {};
+  incomeData.forEach(job => {
+    const emails = Array.isArray(job.employeeEmails) ? job.employeeEmails : [];
+    if (!emails.length) return;
+    const split = (job.amount + job.tips) / emails.length;
+    emails.forEach(em => {
+      totalRevByEmp[em] = (totalRevByEmp[em]||0) + split;
+      jobCountByEmp[em] = (jobCountByEmp[em]||0) + 1;
+    });
+  });
+  expenseData.forEach(exp => {
+    if (exp.employeeEmail) expByEmp[exp.employeeEmail] = (expByEmp[exp.employeeEmail]||0) + exp.amount;
+  });
+  document.getElementById('employee-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-label">Team Size</div><div class="stat-val" style="color:var(--accent2)">'+approved.length+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Pending</div><div class="stat-val" style="color:var(--yellow)">'+pendingData.filter(p=>p.type==='application'&&p.status==='pending').length+'</div></div>';
+  if (!approved.length) {
+    document.getElementById('employee-grid').innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:16px">No approved employees yet.</div>';
+    return;
+  }
+
+  // Admin always pinned first, rest sorted by name
+  const adminEntry = approved.find(e => e.gmail.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const others = approved.filter(e => e.gmail.toLowerCase() !== ADMIN_EMAIL.toLowerCase()).sort((a,b)=>a.name.localeCompare(b.name));
+  const sorted = adminEntry ? [adminEntry, ...others] : others;
+
+  function buildCard(e) {
+    const isAdminCard = e.gmail.toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    const rev = totalRevByEmp[e.gmail]||0;
+    const jobs = jobCountByEmp[e.gmail]||0;
+    const cardBg = isAdminCard ? 'background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-color:#fbbf2460;' : '';
+    const topBorder = isAdminCard ? 'border-top:3px solid var(--yellow)' : 'border-top:3px solid var(--accent2)';
+    const avatarBg = isAdminCard ? 'background:var(--yellow)22;border:2px solid var(--yellow)60;color:var(--yellow)' : 'background:var(--accent2)22;border:1px solid var(--accent2)50;color:var(--accent2)';
+    const pinIcon = isAdminCard ? '<span style="font-size:0.6rem;color:var(--yellow);letter-spacing:1px;text-transform:uppercase;margin-right:4px">📌 PINNED</span>' : '';
+    const adminBadge = isAdminCard ? '<span style="background:var(--yellow)22;color:var(--yellow);border:1px solid var(--yellow)50;border-radius:12px;padding:2px 8px;font-size:0.6rem;font-weight:600;letter-spacing:1px;margin-left:8px">ADMIN</span>' : '';
+    return '<div class="customer-card" style="cursor:pointer;'+topBorder+';'+cardBg+'" onclick="openEmployeeProfile(\''+h(e.gmail)+'\')">'+
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">'+
+        '<div style="display:flex;align-items:center;gap:10px">'+
+          '<div style="width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:1.2rem;flex-shrink:0;'+avatarBg+'">'+h(e.name?e.name[0].toUpperCase():'?')+'</div>'+
+          '<div>'+
+            '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px">'+
+              '<div class="customer-name">'+h(e.name)+'</div>'+adminBadge+
+            '</div>'+
+            '<div style="font-size:0.62rem;color:var(--muted);margin-top:1px">'+h(e.gmail)+'</div>'+
+          '</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">'+
+          (currentUser.isAdmin && !isAdminCard ? '<div style="display:flex;gap:6px" onclick="event.stopPropagation()">'+
+            '<button class="btn btn-ghost btn-sm" onclick="openEditEmployee(\''+h(e.gmail)+'\')">✎</button>'+
+            '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteEmployee(\''+h(e.gmail)+'\'))">✕</button>'+
+          '</div>' :
+          (currentUser.isAdmin && isAdminCard ? '<div onclick="event.stopPropagation()"><button class="btn btn-ghost btn-sm" onclick="openEditEmployee(\''+h(e.gmail)+'\')">✎</button></div>' : ''))+
+        '</div>'+
+      '</div>'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;background:'+(isAdminCard?'rgba(0,0,0,0.3)':'var(--surface2)')+';border-radius:8px;padding:10px 12px;margin-bottom:10px">'+
+        '<div style="text-align:center"><div style="font-family:var(--font-display);font-size:1.1rem;color:'+(isAdminCard?'var(--yellow)':'var(--accent)')+'">'+jobs+'</div><div style="font-size:0.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Jobs</div></div>'+
+        '<div style="text-align:center;border-left:1px solid var(--border)"><div style="font-family:var(--font-display);font-size:1rem;color:#34d399">'+fmt(rev)+'</div><div style="font-size:0.55rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Revenue</div></div>'+
+      '</div>'+
+      '<div style="font-size:0.68rem;color:var(--muted)">'+
+        (e.phone ? '📞 '+h(e.phone)+'<br>' : '')+
+        '📅 Since '+h(e.employmentDate||'—')+
+      '</div>'+
+    '</div>';
+  }
+
+  document.getElementById('employee-grid').innerHTML = sorted.map(buildCard).join('');
+}
+
+function openEmployeeProfile(gmail) {
+  const e = employeeData.find(x => x.gmail === gmail); if (!e) return;
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('employee-profile-page').style.display = 'block';
+  document.getElementById('topbar-title').textContent = (e.name||e.gmail).toUpperCase();
+  // Header
+  const totalRevByEmp = {};
+  const jobsForEmp = incomeData.filter(job => (job.employeeEmails||[]).includes(e.gmail));
+  const split = jobsForEmp.reduce((s,job) => s + (job.amount+job.tips)/Math.max((job.employeeEmails||[]).length,1), 0);
+  const totalExp = expenseData.filter(x=>x.employeeEmail===e.gmail).reduce((s,x)=>s+x.amount,0);
+  document.getElementById('emp-profile-header').innerHTML =
+    '<div class="profile-header">'+
+      '<div class="profile-avatar-lg" style="background:var(--accent2)22;color:var(--accent2);border:2px solid var(--accent2)40">'+h(e.name?e.name[0].toUpperCase():'?')+'</div>'+
+      '<div style="flex:1">'+
+        '<div style="font-family:var(--font-display);font-size:1.6rem;color:#e8edf8;letter-spacing:2px;margin-bottom:6px">'+h(e.name)+'</div>'+
+        '<div style="font-size:0.72rem;color:var(--muted);line-height:2">'+
+          '✉️ '+h(e.gmail)+'<br>'+
+          (e.phone?'📞 '+h(e.phone)+'<br>':'')+
+          '📅 Employed: '+h(e.employmentDate||'—')+
+        '</div>'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Jobs</div><div class="stat-val" style="color:var(--accent2);font-size:1.4rem">'+jobsForEmp.length+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Revenue (split)</div><div class="stat-val" style="color:var(--accent);font-size:1.4rem">'+fmt(split)+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Expenses</div><div class="stat-val" style="color:var(--red);font-size:1.4rem">'+fmt(totalExp)+'</div></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  // Jobs
+  const sPill = {Completed:'pill-green',Pending:'pill-yellow',Cancelled:'pill-red'};
+  document.getElementById('emp-jobs-tbody').innerHTML = jobsForEmp.length ?
+    jobsForEmp.sort((a,b)=>b.date.localeCompare(a.date)).map(job=>{
+      const empCount = Math.max((job.employeeEmails||[]).length, 1);
+      const credit = (job.amount+job.tips)/empCount;
+      const svcs = Array.isArray(job.services) ? job.services.join(', ') : (job.service||'—');
+      return '<tr>'+
+        '<td style="color:var(--muted)">'+h(job.date)+'</td>'+
+        '<td>'+h(job.customer||'—')+'</td>'+
+        '<td>'+h(svcs)+'</td>'+
+        '<td style="color:var(--accent)">+'+fmt(job.amount)+'</td>'+
+        '<td style="color:var(--yellow)">'+fmt(job.tips)+'</td>'+
+        '<td style="color:#34d399">'+fmt(credit)+(empCount>1?' (÷'+empCount+')':'')+'</td>'+
+        '<td><span class="pill '+(sPill[job.status]||'pill-blue')+'">'+h(job.status)+'</span></td>'+
+      '</tr>';
+    }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No jobs logged yet</td></tr>';
+  // Expenses
+  const empExps = expenseData.filter(x=>x.employeeEmail===e.gmail);
+  document.getElementById('emp-expenses-tbody').innerHTML = empExps.length ?
+    empExps.sort((a,b)=>b.date.localeCompare(a.date)).map(ex=>
+      '<tr>'+
+        '<td style="color:var(--muted)">'+h(ex.date)+'</td>'+
+        '<td><span class="pill pill-red">'+h(ex.category)+'</span></td>'+
+        '<td>'+h(ex.description||'—')+'</td>'+
+        '<td style="color:var(--red)">-'+fmt(ex.amount)+'</td>'+
+        '<td style="color:var(--muted)">'+h(ex.vendor||'—')+'</td>'+
+      '</tr>'
+    ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No expenses logged yet</td></tr>';
+}
+
+function closeEmployeeProfile() {
+  document.getElementById('employee-profile-page').style.display = 'none';
+  showTab('employees');
+}
+
+function openEditEmployee(gmail) {
+  const e = employeeData.find(x => x.gmail === gmail); if (!e) return;
+  editingEmployeeId = gmail;
+  document.getElementById('ee-name').value  = e.name || '';
+  document.getElementById('ee-phone').value = e.phone || '';
+  document.getElementById('ee-gmail').value = e.gmail;
+  document.getElementById('ee-date').value  = e.employmentDate || '';
+  document.getElementById('modal-edit-employee').classList.add('open');
+}
+
+async function saveEmployeeEdit() {
+  const e = employeeData.find(x => x.gmail === editingEmployeeId); if (!e) return;
+  e.name  = document.getElementById('ee-name').value.trim();
+  e.phone = document.getElementById('ee-phone').value.trim();
+  e.employmentDate = document.getElementById('ee-date').value;
+  await syncSheet('employees');
+  closeModal('edit-employee');
+  renderEmployees();
+}
+
+async function deleteEmployee(gmail) {
+  employeeData = employeeData.filter(e => e.gmail !== gmail);
+  await syncSheet('employees');
+  renderEmployees();
+}
+
+// ── JOB EMPLOYEE ASSIGNMENT ──
+function openAssignEmployees(jobId) {
+  if (!currentUser.isAdmin) return;
+  assignJobId = jobId;
+  const job = incomeData.find(x => x.id == jobId);
+  const currentEmails = job ? (job.employeeEmails||[]) : [];
+  const approved = employeeData.filter(e => e.status === 'approved');
+  document.getElementById('assign-employee-list').innerHTML = approved.map(e =>
+    '<label style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--surface2);border-radius:8px;cursor:pointer">'+
+      '<input type="checkbox" value="'+h(e.gmail)+'" '+(currentEmails.includes(e.gmail)?'checked':'')+' style="width:16px;height:16px;accent-color:var(--accent)"/>'+
+      '<span>'+h(e.name)+' <span style="color:var(--muted);font-size:0.65rem">'+h(e.gmail)+'</span></span>'+
+    '</label>'
+  ).join('') || '<div style="color:var(--muted);font-size:0.73rem">No approved employees yet</div>';
+  document.getElementById('modal-assign-employees').classList.add('open');
+}
+
+async function saveJobEmployees() {
+  const job = incomeData.find(x => x.id == assignJobId); if (!job) return;
+  const checked = [...document.querySelectorAll('#assign-employee-list input[type=checkbox]:checked')];
+  job.employeeEmails = checked.map(c => c.value);
+  job.employeeNames  = checked.map(c => {
+    const e = employeeData.find(x => x.gmail === c.value);
+    return e ? e.name : c.value;
+  });
+  await syncSheet('income');
+  closeModal('assign-employees');
+  renderIncome();
+}
+
+// ── OVERRIDE saveIncome to auto-tag employee ──
+const _origSaveIncome = saveIncome;
+
 // ═══════════════ MOBILE SIDEBAR ═══════════════
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
@@ -1057,18 +1845,21 @@ function showTab(tab) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('customer-profile').classList.remove('active');
+  document.getElementById('employee-profile-page').style.display = 'none';
   document.getElementById('tab-' + tab).classList.add('active');
   const nb = document.getElementById('nav-' + tab);
   if (nb) nb.classList.add('active');
-  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS'};
+  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS',employees:'EMPLOYEES',pending:'PENDING APPROVAL'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab.toUpperCase();
-  closeSidebar(); // close drawer on mobile after nav
+  closeSidebar();
   if (tab==='income')    renderIncome();
   if (tab==='expenses')  renderExpenses();
   if (tab==='schedule')  renderCalendar();
   if (tab==='customers') renderCustomers();
   if (tab==='reports')   renderReports();
   if (tab==='home')      renderHomeStats();
+  if (tab==='employees') renderEmployees();
+  if (tab==='pending')   renderPending();
 }
 
 // ═══════════════ MODALS ═══════════════
@@ -1159,20 +1950,32 @@ function saveIncome() {
   const typedName = document.getElementById('i-customer-name').value.trim();
   const matched   = customerData.find(c => c.name.toLowerCase() === typedName.toLowerCase());
   const services  = getCheckedServices('i-services');
+  const isApproved = currentUser.isAdmin || employeeData.find(e => e.gmail === currentUser.email && e.status === 'approved');
+  const defaultEmails = isApproved && !editingIncomeId ? [currentUser.email] : (editingIncomeId ? (incomeData.find(x=>x.id===editingIncomeId)||{}).employeeEmails||[] : []);
+  const defaultNames  = defaultEmails.map(em => { const e=employeeData.find(x=>x.gmail===em); return e?e.name:em; });
   const entry = {
-    id:         editingIncomeId || Date.now(),
-    date:       document.getElementById('i-date').value,
-    customerId: matched ? matched.id : null,
-    customer:   typedName,
-    services:   services,
-    service:    services.join(', '), // keep for backward compat display
-    amount:     parseFloat(document.getElementById('i-amount').value) || 0,
-    tips:       parseFloat(document.getElementById('i-tips').value)   || 0,
-    mileage:    parseFloat(document.getElementById('i-mileage').value)|| 0,
-    status:     document.getElementById('i-status').value,
-    link:       document.getElementById('i-link').value,
-    notes:      document.getElementById('i-notes').value,
+    id:             editingIncomeId || Date.now(),
+    date:           document.getElementById('i-date').value,
+    customerId:     matched ? matched.id : null,
+    customer:       typedName,
+    services,
+    service:        services.join(', '),
+    amount:         parseFloat(document.getElementById('i-amount').value) || 0,
+    tips:           parseFloat(document.getElementById('i-tips').value)   || 0,
+    mileage:        parseFloat(document.getElementById('i-mileage').value)|| 0,
+    status:         document.getElementById('i-status').value,
+    link:           document.getElementById('i-link').value,
+    notes:          document.getElementById('i-notes').value,
+    employeeEmails: defaultEmails,
+    employeeNames:  defaultNames,
   };
+  if (editingIncomeId && !currentUser.isAdmin) {
+    const orig = incomeData.find(x => x.id === editingIncomeId);
+    submitEditRequest('income', editingIncomeId, orig, entry);
+    editingIncomeId = null;
+    closeModal('income');
+    return;
+  }
   if (editingIncomeId) { const i=incomeData.findIndex(x=>x.id===editingIncomeId); if(i!==-1) incomeData[i]=entry; }
   else incomeData.unshift(entry);
   editingIncomeId = null;
@@ -1227,6 +2030,8 @@ function renderIncome() {
     const link = r.link ? '<a href="'+h(r.link)+'" target="_blank">🔗</a>' : '—';
     const svcs = Array.isArray(r.services) ? r.services : (r.service ? [r.service] : []);
     const svcPills = svcs.length ? svcs.map(s=>'<span class="pill pill-blue" style="margin:1px">'+h(s)+'</span>').join(' ') : '<span style="color:var(--muted)">—</span>';
+    const empNames = Array.isArray(r.employeeNames) && r.employeeNames.length ? r.employeeNames.join(', ') : (r.employeeEmails||[]).join(', ') || '—';
+    const assignBtn = currentUser.isAdmin ? '<button class="btn btn-ghost btn-sm" style="font-size:0.6rem" onclick="openAssignEmployees('+r.id+')">👷</button>' : '';
     return '<tr>'+
       '<td style="color:var(--muted)">'+h(r.date)+'</td>'+
       '<td>'+name+'</td>'+
@@ -1235,15 +2040,16 @@ function renderIncome() {
       '<td style="color:var(--yellow)">'+(r.tips?fmt(r.tips):'—')+'</td>'+
       '<td><span class="pill '+(sPill[r.status]||'pill-blue')+'">'+h(r.status)+'</span></td>'+
       '<td style="color:var(--purple)">'+(r.mileage?r.mileage+' mi':'—')+'</td>'+
+      '<td style="font-size:0.68rem;color:var(--text)">'+h(empNames)+' '+assignBtn+'</td>'+
       '<td style="color:var(--muted);font-size:0.68rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+h(r.notes||'—')+'</td>'+
       '<td>'+link+'</td>'+
       '<td><div style="display:flex;gap:6px">'+
         '<button class="btn btn-ghost btn-sm" onclick="editIncome('+r.id+')">✎ Edit</button>'+
-        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteIncome('+r.id+'))">✕</button>'+
+        (currentUser.isAdmin ? '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteIncome('+r.id+'))">✕</button>' : '')+
       '</div></td></tr>';
   });
   document.getElementById('income-tbody').innerHTML = rows.length ? rows.join('') :
-    '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No jobs match your search':'No jobs yet')+'</td></tr>';
+    '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No jobs match your search':'No jobs yet')+'</td></tr>';
 }
 
 // ═══════════════ EXPENSES ═══════════════
@@ -1263,14 +2069,23 @@ function editExpense(id) {
 
 function saveExpense() {
   const entry = {
-    id: editingExpenseId || Date.now(),
-    date:        document.getElementById('e-date').value,
-    category:    document.getElementById('e-category').value,
-    description: document.getElementById('e-desc').value,
-    amount:      parseFloat(document.getElementById('e-amount').value)||0,
-    vendor:      document.getElementById('e-vendor').value,
-    notes:       document.getElementById('e-notes').value,
+    id:            editingExpenseId || Date.now(),
+    date:          document.getElementById('e-date').value,
+    category:      document.getElementById('e-category').value,
+    description:   document.getElementById('e-desc').value,
+    amount:        parseFloat(document.getElementById('e-amount').value)||0,
+    vendor:        document.getElementById('e-vendor').value,
+    notes:         document.getElementById('e-notes').value,
+    employeeEmail: currentUser.email,
+    employeeName:  currentUser.name || currentUser.email,
   };
+  if (editingExpenseId && !currentUser.isAdmin) {
+    const orig = expenseData.find(x => x.id === editingExpenseId);
+    submitEditRequest('expense', editingExpenseId, orig, entry);
+    editingExpenseId = null;
+    closeModal('expense');
+    return;
+  }
   if (editingExpenseId) { const i=expenseData.findIndex(x=>x.id===editingExpenseId); if(i!==-1) expenseData[i]=entry; }
   else expenseData.unshift(entry);
   editingExpenseId = null;
@@ -1308,14 +2123,15 @@ function renderExpenses() {
       '<td><span class="pill pill-red">'+h(r.category)+'</span></td>'+
       '<td>'+desc+'</td>'+
       '<td style="color:var(--red);font-weight:500">−'+fmt(r.amount)+'</td>'+
+      '<td style="font-size:0.68rem;color:var(--text)">'+h(r.employeeName||r.employeeEmail||'—')+'</td>'+
       '<td style="color:var(--muted);font-size:0.68rem">'+h(r.notes||'—')+'</td>'+
       '<td><div style="display:flex;gap:6px">'+
         '<button class="btn btn-ghost btn-sm" onclick="editExpense('+r.id+')">✎ Edit</button>'+
-        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteExpense('+r.id+'))">✕</button>'+
+        (currentUser.isAdmin ? '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteExpense('+r.id+'))">✕</button>' : '')+
       '</div></td></tr>';
   });
   document.getElementById('expense-tbody').innerHTML = rows.length ? rows.join('') :
-    '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No expenses match your search':'No expenses yet')+'</td></tr>';
+    '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No expenses match your search':'No expenses yet')+'</td></tr>';
 }
 
 // ═══════════════ SCHEDULE ═══════════════
@@ -1389,6 +2205,61 @@ function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
   syncSheet('schedule'); renderCalendar(); }
 function changeMonth(dir) { calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
 
+let markCompleteId = null;
+
+function openMarkComplete(eventId) {
+  const ev = scheduleData.find(e => e.id == eventId); if (!ev) return;
+  markCompleteId = eventId;
+  const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : (ev.services||'—');
+  document.getElementById('complete-job-summary').innerHTML =
+    '<div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:1px;margin-bottom:8px">'+h(ev.title)+'</div>'+
+    (ev.customer?'👤 '+h(ev.customer)+'<br>':'')+
+    (ev.date?'📅 '+h(ev.date)+(ev.time?' at '+fmtTime(ev.time):'')+'<br>':'')+
+    (svcs!=='—'?'🔧 '+h(svcs)+'<br>':'')+
+    (ev.address?'📍 '+h(ev.address):'');
+  document.getElementById('mc-notes').value   = ev.notes||'';
+  document.getElementById('mc-amount').value  = '';
+  document.getElementById('mc-tips').value    = '';
+  document.getElementById('mc-mileage').value = '';
+  document.getElementById('mc-status').value  = 'Completed';
+  document.getElementById('modal-mark-complete').classList.add('open');
+}
+
+async function saveMarkComplete() {
+  const ev = scheduleData.find(e => e.id == markCompleteId); if (!ev) return;
+  const amount  = parseFloat(document.getElementById('mc-amount').value)||0;
+  const tips    = parseFloat(document.getElementById('mc-tips').value)||0;
+  const mileage = parseFloat(document.getElementById('mc-mileage').value)||0;
+  const status  = document.getElementById('mc-status').value;
+  const notes   = document.getElementById('mc-notes').value;
+  const matched = customerData.find(c=>c.name.toLowerCase()===(ev.customer||'').toLowerCase());
+  const isApproved = currentUser.isAdmin || employeeData.find(e=>e.gmail===currentUser.email&&e.status==='approved');
+  const empEmails = isApproved ? [currentUser.email] : [];
+  const empNames  = empEmails.map(em=>{const e=employeeData.find(x=>x.gmail===em);return e?e.name:em;});
+  const incomeEntry = {
+    id: Date.now(),
+    date: ev.date,
+    customerId: matched?matched.id:null,
+    customer: ev.customer||'',
+    services: Array.isArray(ev.services)?ev.services:[],
+    service:  Array.isArray(ev.services)?ev.services.join(', '):(ev.services||''),
+    amount, tips, mileage, status,
+    link: '', notes,
+    employeeEmails: empEmails,
+    employeeNames:  empNames,
+  };
+  ev.completed = 'true';
+  ev.incomeId  = String(incomeEntry.id);
+  incomeData.unshift(incomeEntry);
+  await Promise.all([syncSheet('income'), syncSheet('schedule')]);
+  closeModal('mark-complete');
+  markCompleteId = null;
+  renderCalendar();
+  renderHomeStats();
+  setSyncStatus('Job logged ✓','var(--accent)');
+  setTimeout(()=>setSyncStatus('Synced','var(--accent)'),3000);
+}
+
 function renderCalendar() {
   const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
   document.getElementById('cal-month-label').textContent = MONTHS[calMonth]+' '+calYear;
@@ -1399,15 +2270,22 @@ function renderCalendar() {
     const ds=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const isToday=d===today.getDate()&&calMonth===today.getMonth()&&calYear===today.getFullYear();
     const evs=scheduleData.filter(e=>e.date===ds);
-    const evHtml=evs.map(e=>'<div class="cal-event">'+(e.time?fmtTime(e.time)+' ':'')+h(e.title)+'</div>').join('');
+    const evHtml=evs.map(e=>{
+      const done = e.completed === 'true' || e.completed === true;
+      const color = done ? '#34d399' : 'var(--accent)';
+      const bg = done ? '#34d39925' : 'var(--accent)25';
+      return '<div class="cal-event" style="background:'+bg+';border-color:'+color+';color:'+color+'">'+(done?'✓ ':'')+h(e.title)+'</div>';
+    }).join('');
     cells+='<div class="cal-cell'+(isToday?' today':'')+'"><div class="cal-date">'+d+'</div>'+evHtml+'</div>';
   }
   const rem=(firstDay+dim)%7===0?0:7-(firstDay+dim)%7;
   for(let i=1;i<=rem;i++) cells+='<div class="cal-cell other-month"><div class="cal-date" style="color:var(--muted)">'+i+'</div></div>';
   document.getElementById('cal-grid').innerHTML=cells;
+
   const typePill={Job:'pill-green',Estimate:'pill-yellow','Follow-up':'pill-blue',Other:'pill-purple'};
   const upcoming=[...scheduleData].sort((a,b)=>a.date.localeCompare(b.date));
-    const srows=upcoming.map(r=>{
+  const srows=upcoming.map(r=>{
+    const done = r.completed === 'true' || r.completed === true;
     const contact = [
       r.phone ? '📞 '+h(r.phone) : '',
       r.email ? '✉️ '+h(r.email) : '',
@@ -1415,7 +2293,10 @@ function renderCalendar() {
     ].filter(Boolean).join('&nbsp;&nbsp;');
     const svcs = Array.isArray(r.services) ? r.services : [];
     const svcPills = svcs.length ? svcs.map(s=>'<span class="pill pill-blue" style="margin:1px;font-size:0.6rem">'+h(s)+'</span>').join(' ') : '<span style="color:var(--muted);font-size:0.68rem">—</span>';
-    return '<tr>'+
+    const completedBadge = done
+      ? '<span class="pill pill-green" style="font-size:0.6rem">✓ Completed</span>'
+      : (r.type === 'Job' ? '<button class="btn btn-accent btn-sm" style="font-size:0.65rem;padding:4px 10px" onclick="openMarkComplete('+r.id+')">✓ Mark Complete</button>' : '');
+    return '<tr style="'+(done?'opacity:0.7':'')+'">'+
       '<td style="color:var(--muted)">'+h(r.date)+'</td>'+
       '<td style="white-space:nowrap">'+h(fmtTime(r.time)||'—')+'</td>'+
       '<td>'+h(r.title)+'</td>'+
@@ -1424,12 +2305,13 @@ function renderCalendar() {
       '<td style="max-width:180px">'+svcPills+'</td>'+
       '<td style="font-size:0.68rem;color:var(--muted)">'+(contact||'—')+'</td>'+
       '<td style="color:var(--muted);font-size:0.68rem;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+h(r.notes||'—')+'</td>'+
+      '<td>'+completedBadge+'</td>'+
       '<td><div style="display:flex;gap:6px">'+
         '<button class="btn btn-ghost btn-sm" onclick="editEvent('+r.id+')">✎ Edit</button>'+
         '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteEvent('+r.id+'))">✕</button>'+
       '</div></td></tr>';
   });
-  document.getElementById('schedule-tbody').innerHTML=srows.length?srows.join(''):'<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px">No events scheduled</td></tr>';
+  document.getElementById('schedule-tbody').innerHTML=srows.length?srows.join(''):'<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:24px">No events scheduled</td></tr>';
 }
 
 // ═══════════════ CUSTOMERS ═══════════════
@@ -1449,6 +2331,13 @@ function editCustomer(id) {
 
 function saveCustomer() {
   const entry={id:editingCustomerId||Date.now(),name:document.getElementById('c-name').value,phone:document.getElementById('c-phone').value,email:document.getElementById('c-email').value,address:document.getElementById('c-address').value,tag:document.getElementById('c-tag').value,notes:document.getElementById('c-notes').value};
+  if (editingCustomerId && !currentUser.isAdmin) {
+    const orig = customerData.find(x => x.id === editingCustomerId);
+    submitEditRequest('customer', editingCustomerId, orig, entry);
+    editingCustomerId = null;
+    closeModal('customer');
+    return;
+  }
   if(editingCustomerId){const i=customerData.findIndex(x=>x.id===editingCustomerId);if(i!==-1)customerData[i]=entry;}
   else customerData.push(entry);
   syncSheet('customers');
