@@ -1370,43 +1370,33 @@ async function syncSheet(type) {
     }
 
     // ── Read-modify-write: fetch current sheet, merge our changes, write back ──
-    // This prevents stale data from one user overwriting changes made by another
-    let freshRows = [];
-    try {
-      freshRows = await sheetsGet(sheet+'!A:Z');
-    } catch(e) { /* if fetch fails, fall back to writing in-memory data */ }
+    // This prevents stale data from one user overwriting changes made by another.
+    // NOTE: pending and notifications are admin-only — skip merge, just write directly.
+    const skipMerge = ['pending', 'notifications', 'employees'].includes(type);
 
-    let finalData = data; // default: use our in-memory data
+    let finalData = data;
 
-    if (freshRows.length > 1) {
-      const parse = (rows) =>
-        rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers, r));
-      const freshData = parse(freshRows);
+    if (!skipMerge) {
+      let freshRows = [];
+      try {
+        freshRows = await sheetsGet(sheet+'!A:Z');
+      } catch(e) { /* fall back to in-memory data */ }
 
-      // Build a map of fresh records by ID
-      const freshMap = new Map(freshData.map(r => [String(r.id), r]));
-
-      // Overlay our in-memory records (our changes win for records we touched,
-      // but records that exist in the sheet but NOT in our memory are kept)
-      const ourIds = new Set(data.map(r => String(r.id)));
-
-      // Start with fresh records that we don't have locally (added by someone else)
-      const merged = freshData.filter(r => !ourIds.has(String(r.id)));
-      // Add all our records (our version is authoritative for what we touched)
-      data.forEach(r => merged.push(r));
-
-      // Sort by id to keep consistent order
-      merged.sort((a,b) => String(a.id).localeCompare(String(b.id)));
-      finalData = merged;
-
-      // Update our in-memory data to the merged result so UI stays consistent
-      if (type === 'income')    incomeData   = merged;
-      if (type === 'expenses')  expenseData  = merged;
-      if (type === 'schedule')  scheduleData = merged;
-      if (type === 'customers') customerData = merged;
-      if (type === 'employees') employeeData = merged;
-      if (type === 'pending')   pendingData  = merged;
-      if (type === 'notifications') notifData = merged;
+      if (freshRows.length > 1) {
+        const freshData = freshRows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers, r));
+        const ourIds = new Set(data.map(r => String(r.id)));
+        // Keep records from sheet that we don't have locally (added by someone else)
+        const merged = freshData.filter(r => !ourIds.has(String(r.id)));
+        // Add all our records (our version wins for what we touched)
+        data.forEach(r => merged.push(r));
+        merged.sort((a,b) => String(a.id).localeCompare(String(b.id)));
+        finalData = merged;
+        // Update in-memory so UI stays consistent
+        if (type === 'income')    incomeData   = merged;
+        if (type === 'expenses')  expenseData  = merged;
+        if (type === 'schedule')  scheduleData = merged;
+        if (type === 'customers') customerData = merged;
+      }
     }
 
     const rows = [headers, ...finalData.map(obj => objToRow(headers, obj))];
