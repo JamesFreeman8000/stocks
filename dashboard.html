@@ -1286,7 +1286,6 @@ async function loadAllData() {
   isLoading = true;
   setSyncStatus('Loading...','var(--yellow)');
   try {
-    await ensureSheets();
     await identifyUser();
     const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
       sheetsGet(SHEETS.income+'!A:Z'),
