@@ -1122,15 +1122,13 @@ function signOut() {
 }
 
 // When user comes back to the tab after being away, check if token needs refreshing
-document.addEventListener('visibilitychange', () => {
+document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW) {
     const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
-    const remaining = expiry - Date.now();
-    if (remaining < 5 * 60 * 1000) silentTokenRefresh();
-    // Always reload fresh data when returning to tab — this is what prevents
-    // stale employee data from overwriting admin changes made while they were away
+    if (expiry - Date.now() < 5 * 60 * 1000) silentTokenRefresh();
+    // Reload fresh data — isLoading will block any saves until this completes
     setSyncStatus('Syncing...', 'var(--yellow)');
-    loadAllData();
+    await loadAllData();
   }
 });
 
@@ -1352,7 +1350,6 @@ async function loadAllData() {
 }
 
 async function syncSheet(type) {
-  // Don't save while a fresh load is in progress — it would write stale data
   if (isLoading) {
     console.warn('syncSheet blocked during load:', type);
     return;
@@ -1375,50 +1372,11 @@ async function syncSheet(type) {
       if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
       return;
     }
-
-    // ── Read-modify-write ──
-    // Always fetch fresh sheet data first, then apply ONLY our specific changes on top.
-    // This means: records deleted by someone else stay deleted even if we have them locally.
-    const skipMerge = ['pending', 'notifications', 'employees'].includes(type);
-
-    let finalData = data;
-
-    if (!skipMerge) {
-      let freshRows = [];
-      try {
-        freshRows = await sheetsGet(sheet+'!A:Z');
-      } catch(e) { /* fall back to in-memory data */ }
-
-      if (freshRows.length > 1) {
-        // Fresh data from sheet is the source of truth for what EXISTS
-        const freshData = freshRows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers, r));
-        const freshIds  = new Set(freshData.map(r => String(r.id)));
-
-        // Our in-memory records, indexed by ID
-        const ourMap = new Map(data.map(r => [String(r.id), r]));
-
-        // Start from fresh sheet data — this preserves admin deletions
-        // For each fresh record: use our version if we have it (our edits win),
-        // otherwise keep the sheet version unchanged
-        const merged = freshData.map(r => ourMap.get(String(r.id)) || r);
-
-        // Add any NEW records we created that aren't in the sheet yet
-        data.forEach(r => {
-          if (!freshIds.has(String(r.id))) merged.push(r);
-        });
-        // NOTE: records deleted from sheet but still in our memory are NOT added back ✓
-
-        finalData = merged;
-        if (type === 'income')    incomeData   = merged;
-        if (type === 'expenses')  expenseData  = merged;
-        if (type === 'schedule')  scheduleData = merged;
-        if (type === 'customers') customerData = merged;
-      }
-    }
-
-    const rows = [headers, ...finalData.map(obj => objToRow(headers, obj))];
+    // Simple full rewrite — in-memory data is authoritative because we always
+    // reload from sheet before any user action via loadAllData()
+    const rows = [headers, ...data.map(obj => objToRow(headers, obj))];
     await sheetsWrite(sheet, rows);
-    if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, finalData);
+    if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
     setSyncStatus('Saved ✓','var(--accent)');
     setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
   } catch(e) {
@@ -2415,7 +2373,7 @@ function fmtTime(t) {
   return h12 + ':' + String(m).padStart(2,'0') + ' ' + ampm;
 }
 
-function saveEvent() {
+async function saveEvent() {
   scheduleData.push({
     id:        Date.now(),
     date:      document.getElementById('s-date').value,
@@ -2430,7 +2388,7 @@ function saveEvent() {
     notes:     document.getElementById('s-notes').value,
     createdBy: currentUser.email,
   });
-  syncSheet('schedule');
+  await syncSheet('schedule');
   closeModal('schedule');
   ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id=>document.getElementById(id).value='');
   clearCheckedServices('s-services');
@@ -2453,7 +2411,7 @@ function editEvent(id) {
   document.getElementById('modal-edit-schedule').classList.add('open');
 }
 
-function saveEditEvent() {
+async function saveEditEvent() {
   const i = scheduleData.findIndex(e=>e.id===editingEventId); if(i===-1) return;
   scheduleData[i] = {
     ...scheduleData[i],
@@ -2468,14 +2426,14 @@ function saveEditEvent() {
     address:  document.getElementById('es-address').value,
     notes:    document.getElementById('es-notes').value,
   };
-  syncSheet('schedule');
+  await syncSheet('schedule');
   closeModal('edit-schedule');
   editingEventId = null;
   renderCalendar();
 }
 
-function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
-  syncSheet('schedule'); renderCalendar(); }
+async function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
+  await syncSheet('schedule'); renderCalendar(); }
 
 // Employee tries to edit — goes to pending for admin approval
 function employeeEditEvent(id) {
