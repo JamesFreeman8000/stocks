@@ -1126,11 +1126,9 @@ document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW) {
     const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
     const remaining = expiry - Date.now();
-    if (remaining < 5 * 60 * 1000) {
-      // Less than 5 minutes left — refresh now
-      silentTokenRefresh();
-    }
-    // Also resync data in case anything changed
+    if (remaining < 5 * 60 * 1000) silentTokenRefresh();
+    // Always reload fresh data when returning to tab — this is what prevents
+    // stale employee data from overwriting admin changes made while they were away
     setSyncStatus('Syncing...', 'var(--yellow)');
     loadAllData();
   }
@@ -1286,6 +1284,8 @@ function objToRow(headers, obj) {
 }
 
 async function loadAllData() {
+  if (isLoading) return; // already loading, skip duplicate calls
+  isLoading = true;
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await ensureSheets();
@@ -1346,10 +1346,17 @@ async function loadAllData() {
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
+  } finally {
+    isLoading = false;
   }
 }
 
 async function syncSheet(type) {
+  // Don't save while a fresh load is in progress — it would write stale data
+  if (isLoading) {
+    console.warn('syncSheet blocked during load:', type);
+    return;
+  }
   const map = {
     income:        { headers:INCOME_HEADERS,   data:incomeData,   sheet:SHEETS.income },
     expenses:      { headers:EXPENSE_HEADERS,  data:expenseData,  sheet:SHEETS.expenses },
@@ -1369,9 +1376,9 @@ async function syncSheet(type) {
       return;
     }
 
-    // ── Read-modify-write: fetch current sheet, merge our changes, write back ──
-    // This prevents stale data from one user overwriting changes made by another.
-    // NOTE: pending and notifications are admin-only — skip merge, just write directly.
+    // ── Read-modify-write ──
+    // Always fetch fresh sheet data first, then apply ONLY our specific changes on top.
+    // This means: records deleted by someone else stay deleted even if we have them locally.
     const skipMerge = ['pending', 'notifications', 'employees'].includes(type);
 
     let finalData = data;
@@ -1383,15 +1390,25 @@ async function syncSheet(type) {
       } catch(e) { /* fall back to in-memory data */ }
 
       if (freshRows.length > 1) {
+        // Fresh data from sheet is the source of truth for what EXISTS
         const freshData = freshRows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers, r));
-        const ourIds = new Set(data.map(r => String(r.id)));
-        // Keep records from sheet that we don't have locally (added by someone else)
-        const merged = freshData.filter(r => !ourIds.has(String(r.id)));
-        // Add all our records (our version wins for what we touched)
-        data.forEach(r => merged.push(r));
-        merged.sort((a,b) => String(a.id).localeCompare(String(b.id)));
+        const freshIds  = new Set(freshData.map(r => String(r.id)));
+
+        // Our in-memory records, indexed by ID
+        const ourMap = new Map(data.map(r => [String(r.id), r]));
+
+        // Start from fresh sheet data — this preserves admin deletions
+        // For each fresh record: use our version if we have it (our edits win),
+        // otherwise keep the sheet version unchanged
+        const merged = freshData.map(r => ourMap.get(String(r.id)) || r);
+
+        // Add any NEW records we created that aren't in the sheet yet
+        data.forEach(r => {
+          if (!freshIds.has(String(r.id))) merged.push(r);
+        });
+        // NOTE: records deleted from sheet but still in our memory are NOT added back ✓
+
         finalData = merged;
-        // Update in-memory so UI stays consistent
         if (type === 'income')    incomeData   = merged;
         if (type === 'expenses')  expenseData  = merged;
         if (type === 'schedule')  scheduleData = merged;
@@ -1434,6 +1451,7 @@ let currentUser = (function() {
   };
 })();
 let dataLoaded   = false;
+let isLoading    = false; // true while loadAllData is running — blocks saves
 let assignJobId  = null;  // job being assigned employees
 let editingPendingId = null; // pending record being reviewed
 let editingEmployeeId = null;
