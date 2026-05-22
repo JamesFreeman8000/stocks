@@ -1208,72 +1208,26 @@ async function sheetsGet(range) {
   return data.values || [];
 }
 
-// ── Parse append-only sheet into deduplicated records ──
-// Rows with _deleted=true are excluded. Latest _ts wins for each ID.
-function resolveRows(allRows, headers) {
-  if (!allRows || allRows.length < 2) return [];
-  const headerRow = allRows[0];
-  // Find _ts and _deleted column indices
-  const tsIdx  = headerRow.indexOf('_ts');
-  const delIdx = headerRow.indexOf('_deleted');
-  const dataRows = allRows.slice(1);
-  const map = new Map();
-  dataRows.forEach(row => {
-    const id  = row[0];
-    const ts  = tsIdx  >= 0 ? (row[tsIdx]  || '') : '';
-    const del = delIdx >= 0 ? (row[delIdx] || '') : '';
-    const prev = map.get(id);
-    if (!prev || ts > prev.ts) map.set(id, { row, ts, del });
-  });
-  const result = [];
-  map.forEach(({ row, del }) => {
-    if (del !== 'true') result.push(row.slice(0, headers.length));
-  });
-  return result;
-}
 
-// ── Write: append new/updated rows ──
-async function sheetsAppend(sheetName, rows, headers) {
+// ── Write: full rewrite of a sheet ──
+async function sheetsWrite(sheetName, rows) {
   if (IS_PREVIEW) {
-    // Preview: just do a full rewrite for simplicity
     const token = accessToken;
     await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A:Z')+':clear',
       { method:'POST', headers:{ Authorization:'Bearer '+token } });
     await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A1')+'?valueInputOption=RAW', {
       method:'PUT',
       headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
-      body: JSON.stringify({ values: [headers, ...rows] })
+      body: JSON.stringify({ values: rows })
     });
     return;
   }
-  const r = await fetch(WORKER+'/sheets/append', {
+  const r = await fetch(WORKER+'/sheets/write', {
     method: 'POST',
     headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
-    body: JSON.stringify({ sheetName, rows, headers }),
+    body: JSON.stringify({ sheetName, rows }),
   });
-  if (!r.ok) throw new Error('Append failed '+r.status+': '+(await r.text()));
-}
-
-// ── Delete: append a tombstone row ──
-async function sheetsDelete(sheetName, id) {
-  if (IS_PREVIEW) return; // preview handles deletes via full rewrite in syncSheet
-  const r = await fetch(WORKER+'/sheets/delete', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
-    body: JSON.stringify({ sheetName, id: String(id), idColIndex: 0 }),
-  });
-  if (!r.ok) throw new Error('Delete failed '+r.status);
-}
-
-// ── Compact: rewrite sheet keeping only latest records (called after bulk changes) ──
-async function sheetsCompact(sheetName, headers) {
-  if (IS_PREVIEW) return;
-  const r = await fetch(WORKER+'/sheets/compact', {
-    method: 'POST',
-    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
-    body: JSON.stringify({ sheetName, headers }),
-  });
-  if (!r.ok) throw new Error('Compact failed '+r.status);
+  if (!r.ok) throw new Error('Write failed '+r.status+': '+(await r.text()));
 }
 
 // ── Ensure sheet tabs exist ──
@@ -1331,13 +1285,11 @@ function objToRow(headers, obj) {
   });
 }
 
-
 async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await ensureSheets();
     await identifyUser();
-    // Fetch full column range to include _ts and _deleted columns
     const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
       sheetsGet(SHEETS.income+'!A:Z'),
       sheetsGet(SHEETS.expenses+'!A:Z'),
@@ -1347,28 +1299,16 @@ async function loadAllData() {
       sheetsGet(SHEETS.pending+'!A:Z'),
       sheetsGet(SHEETS.notifications+'!A:Z'),
     ]);
-
-    // resolveRows deduplicates by ID, strips _ts/_deleted, respects tombstones
-    const parseAppend = (rows, headers) => {
-      if (!rows || rows.length < 2) return null;
-      const resolved = resolveRows(rows, headers);
-      return resolved.length ? resolved.map(r => rowToObj(headers, r)) : null;
-    };
-    // Fallback: plain parse for first-time sheets that have no _ts column yet
-    const parsePlain = (rows, headers) =>
+    const parse = (rows, headers) =>
       rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : null;
-
-    const hasTS = (rows) => rows[0] && rows[0].includes('_ts');
-
-    incomeData   = (hasTS(incRows)   ? parseAppend(incRows,   INCOME_HEADERS)   : parsePlain(incRows,   INCOME_HEADERS))   || load('pw_income',[]);
-    expenseData  = (hasTS(expRows)   ? parseAppend(expRows,   EXPENSE_HEADERS)  : parsePlain(expRows,   EXPENSE_HEADERS))  || load('pw_expenses',[]);
-    scheduleData = (hasTS(schRows)   ? parseAppend(schRows,   SCHEDULE_HEADERS) : parsePlain(schRows,   SCHEDULE_HEADERS)) || load('pw_schedule',[]);
-    customerData = (hasTS(cusRows)   ? parseAppend(cusRows,   CUSTOMER_HEADERS) : parsePlain(cusRows,   CUSTOMER_HEADERS)) || load('pw_customers',[]);
-    employeeData = (hasTS(empRows)   ? parseAppend(empRows,   EMPLOYEE_HEADERS) : parsePlain(empRows,   EMPLOYEE_HEADERS)) || [];
-    pendingData  = (hasTS(penRows)   ? parseAppend(penRows,   PENDING_HEADERS)  : parsePlain(penRows,   PENDING_HEADERS))  || [];
-    notifData    = (hasTS(notifRows) ? parseAppend(notifRows, NOTIF_HEADERS)    : parsePlain(notifRows, NOTIF_HEADERS))    || [];
-
-    // First-time migration: if sheets are empty, write existing localStorage data as initial rows
+    incomeData   = parse(incRows,   INCOME_HEADERS)   || load('pw_income',[]);
+    expenseData  = parse(expRows,   EXPENSE_HEADERS)  || load('pw_expenses',[]);
+    scheduleData = parse(schRows,   SCHEDULE_HEADERS) || load('pw_schedule',[]);
+    customerData = parse(cusRows,   CUSTOMER_HEADERS) || load('pw_customers',[]);
+    employeeData = parse(empRows,   EMPLOYEE_HEADERS) || [];
+    pendingData  = parse(penRows,   PENDING_HEADERS)  || [];
+    notifData    = parse(notifRows, NOTIF_HEADERS)    || [];
+    // Write initial data for empty sheets
     const writes = [];
     if (!incRows.length  || incRows.length  < 2) writes.push(syncSheet('income'));
     if (!expRows.length  || expRows.length  < 2) writes.push(syncSheet('expenses'));
@@ -1378,7 +1318,6 @@ async function loadAllData() {
     if (!penRows.length  || penRows.length  < 2) writes.push(syncSheet('pending'));
     if (!notifRows.length|| notifRows.length< 2) writes.push(syncSheet('notifications'));
     if (writes.length) await Promise.all(writes);
-
     setSyncStatus('Synced ✓','var(--accent)');
     dataLoaded = true;
     await checkEmployeeStatus();
@@ -1398,22 +1337,19 @@ async function loadAllData() {
   } catch(e) {
     setSyncStatus('Sync error — check console','var(--red)');
     console.error('loadAllData error:', e.message, e);
-    // Show a visible error so you know what went wrong
-    const dot = document.getElementById('sync-text');
-    if (dot) dot.title = e.message;
     incomeData   = load('pw_income',[]);
     expenseData  = load('pw_expenses',[]);
     scheduleData = load('pw_schedule',[]);
     customerData = load('pw_customers',[]);
     employeeData = []; pendingData = []; notifData = [];
-    dataLoaded = false; // don't trigger employee modal on failed load
+    dataLoaded = false;
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
   }
 }
 
-async function syncSheet(type, deletedId) {
+async function syncSheet(type) {
   const map = {
     income:        { headers:INCOME_HEADERS,   data:incomeData,   sheet:SHEETS.income },
     expenses:      { headers:EXPENSE_HEADERS,  data:expenseData,  sheet:SHEETS.expenses },
@@ -1432,12 +1368,8 @@ async function syncSheet(type, deletedId) {
       if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
       return;
     }
-    if (deletedId !== undefined) {
-      await sheetsDelete(sheet, deletedId);
-    } else {
-      const rows = data.map(obj => objToRow(headers, obj));
-      await sheetsAppend(sheet, rows, headers);
-    }
+    const rows = [headers, ...data.map(obj => objToRow(headers, obj))];
+    await sheetsWrite(sheet, rows);
     if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
     setSyncStatus('Saved ✓','var(--accent)');
     setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
@@ -1448,26 +1380,8 @@ async function syncSheet(type, deletedId) {
 }
 
 async function syncRecord(type, obj) {
-  const map = {
-    income:        { headers:INCOME_HEADERS,   sheet:SHEETS.income },
-    expenses:      { headers:EXPENSE_HEADERS,  sheet:SHEETS.expenses },
-    schedule:      { headers:SCHEDULE_HEADERS, sheet:SHEETS.schedule },
-    customers:     { headers:CUSTOMER_HEADERS, sheet:SHEETS.customers },
-    employees:     { headers:EMPLOYEE_HEADERS, sheet:SHEETS.employees },
-    pending:       { headers:PENDING_HEADERS,  sheet:SHEETS.pending },
-    notifications: { headers:NOTIF_HEADERS,    sheet:SHEETS.notifications },
-  };
-  const entry = map[type]; if (!entry) return;
-  if (IS_PREVIEW) { setSyncStatus('Preview mode','var(--purple)'); return; }
-  setSyncStatus('Saving...','var(--yellow)');
-  try {
-    await sheetsAppend(entry.sheet, [objToRow(entry.headers, obj)], entry.headers);
-    setSyncStatus('Saved ✓','var(--accent)');
-    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
-  } catch(e) {
-    setSyncStatus('Save failed','var(--red)');
-    console.error('syncRecord error:', e);
-  }
+  // For single record saves just do a full sheet sync
+  await syncSheet(type);
 }
 
 // ═══════════════ DATA ═══════════════
@@ -2268,8 +2182,8 @@ function saveIncome() {
 }
 
 function deleteIncome(id) {
-  const _did=id; incomeData = incomeData.filter(r => r.id!==id);
-  syncSheet('income', _did);
+  incomeData = incomeData.filter(r => r.id!==id);
+  syncSheet('income');
   renderIncome(); renderHomeStats();
 }
 
@@ -2378,8 +2292,8 @@ function saveExpense() {
 }
 
 function deleteExpense(id) {
-  const _did=id; expenseData = expenseData.filter(r=>r.id!==id);
-  syncSheet('expenses', _did);
+  expenseData = expenseData.filter(r=>r.id!==id);
+  syncSheet('expenses');
   renderExpenses(); renderHomeStats();
 }
 
@@ -2484,8 +2398,8 @@ function saveEditEvent() {
   renderCalendar();
 }
 
-function deleteEvent(id) { const _did=id; scheduleData=scheduleData.filter(r=>r.id!==id);
-  syncSheet('schedule', _did); renderCalendar(); }
+function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
+  syncSheet('schedule'); renderCalendar(); }
 function changeMonth(dir) { calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
 
 let markCompleteId = null;
@@ -2632,8 +2546,8 @@ function saveCustomer() {
 }
 
 function deleteCustomer(id) {
-  const _did=id; customerData=customerData.filter(r=>r.id!==id);
-  syncSheet('customers', _did);
+  customerData=customerData.filter(r=>r.id!==id);
+  syncSheet('customers');
   renderCustomers();
 }
 
