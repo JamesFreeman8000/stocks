@@ -817,7 +817,7 @@
   const email = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
   if (email === 'jamesfreeman8000@gmail.com') {
     const m = document.getElementById('modal-employee-setup');
-    if (m) { m.style.display = 'none'; m.classList.remove('open'); }
+    if (m) { m.style.setProperty('display','none','important'); m.classList.remove('open'); }
   }
 })();
 </script>
@@ -1463,9 +1463,16 @@ let pendingData  = [];   // pending applications + edit requests
 let notifData    = [];   // notifications
 let jobPhotos    = load('pw_job_photos', {});
 
-// Current signed-in user
-let currentUser  = { email: '', name: '', isAdmin: false };
-let dataLoaded   = false; // true once sheet data has been successfully fetched
+// Current signed-in user — set isAdmin immediately from sessionStorage so it's available everywhere
+let currentUser = (function() {
+  const email = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+  return {
+    email:   email,
+    name:    sessionStorage.getItem('userName') || '',
+    isAdmin: email === 'jamesfreeman8000@gmail.com',
+  };
+})();
+let dataLoaded   = false;
 let assignJobId  = null;  // job being assigned employees
 let editingPendingId = null; // pending record being reviewed
 let editingEmployeeId = null;
@@ -2232,7 +2239,7 @@ function saveIncome() {
     employeeEmails: defaultEmails,
     employeeNames:  defaultNames,
   };
-  if (editingIncomeId && !currentUser.isAdmin) {
+  if (editingIncomeId && !currentUser.isAdmin && currentUser.email !== ADMIN_EMAIL.toLowerCase()) {
     const orig = incomeData.find(x => x.id === editingIncomeId);
     submitEditRequest('income', editingIncomeId, orig, entry);
     editingIncomeId = null;
@@ -2342,7 +2349,7 @@ function saveExpense() {
     employeeEmail: currentUser.email,
     employeeName:  currentUser.name || currentUser.email,
   };
-  if (editingExpenseId && !currentUser.isAdmin) {
+  if (editingExpenseId && !currentUser.isAdmin && currentUser.email !== ADMIN_EMAIL.toLowerCase()) {
     const orig = expenseData.find(x => x.id === editingExpenseId);
     submitEditRequest('expense', editingExpenseId, orig, entry);
     editingExpenseId = null;
@@ -2594,7 +2601,8 @@ function editCustomer(id) {
 
 function saveCustomer() {
   const entry={id:editingCustomerId||Date.now(),name:document.getElementById('c-name').value,phone:document.getElementById('c-phone').value,email:document.getElementById('c-email').value,address:document.getElementById('c-address').value,tag:document.getElementById('c-tag').value,notes:document.getElementById('c-notes').value};
-  if (editingCustomerId && !currentUser.isAdmin) {
+  // Only non-admins get routed to pending
+  if (editingCustomerId && !currentUser.isAdmin && currentUser.email !== ADMIN_EMAIL.toLowerCase()) {
     const orig = customerData.find(x => x.id === editingCustomerId);
     submitEditRequest('customer', editingCustomerId, orig, entry);
     editingCustomerId = null;
