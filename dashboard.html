@@ -2217,20 +2217,22 @@ function deleteIncome(id) {
 }
 
 function confirmDelete(btn, onConfirm) {
-  if (btn.dataset.confirming) { onConfirm(); return; }
-  const orig = btn.textContent;
-  const origStyle = btn.className;
+  if (btn.dataset.confirming) {
+    delete btn.dataset.confirming;
+    btn.textContent = '✕';
+    Promise.resolve(onConfirm()).catch(e => console.error('Delete error:', e));
+    return;
+  }
   btn.textContent = 'Sure?';
   btn.dataset.confirming = '1';
   btn.style.background = '#ff4d6d';
   btn.style.color = '#fff';
   setTimeout(() => {
     if (btn.dataset.confirming) {
-      btn.textContent = orig;
-      btn.className = origStyle;
+      delete btn.dataset.confirming;
+      btn.textContent = '✕';
       btn.style.background = '';
       btn.style.color = '';
-      delete btn.dataset.confirming;
     }
   }, 2500);
 }
@@ -2432,8 +2434,13 @@ async function saveEditEvent() {
   renderCalendar();
 }
 
-async function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
-  await syncSheet('schedule'); renderCalendar(); }
+async function deleteEvent(id) {
+  scheduleData = scheduleData.filter(r => r.id !== id);
+  console.log('deleteEvent: removed id', id, '— remaining:', scheduleData.length);
+  await syncSheet('schedule');
+  console.log('deleteEvent: syncSheet complete, sync status:', document.getElementById('sync-text').textContent);
+  renderCalendar();
+}
 
 // Employee tries to edit — goes to pending for admin approval
 function employeeEditEvent(id) {
