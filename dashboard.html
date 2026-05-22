@@ -352,6 +352,7 @@
       <div id="sync-status" style="font-size:0.65rem;color:var(--muted);letter-spacing:1px;display:flex;align-items:center;gap:6px;padding:0 8px">
         <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block"></span>
         <span id="sync-text">–</span>
+        <button id="sync-retry-btn" onclick="loadAllData()" style="display:none;background:none;border:1px solid var(--red);color:var(--red);border-radius:4px;padding:2px 7px;font-size:0.6rem;cursor:pointer;font-family:var(--font-mono)">Retry</button>
       </div>
       <!-- NOTIFICATION BELL -->
       <div style="position:relative">
@@ -961,10 +962,12 @@ function fmt(n) { return (n||0).toLocaleString('en-US',{style:'currency',currenc
 function h(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 function setSyncStatus(text, color) {
-  const dot = document.getElementById('sync-dot');
-  const txt = document.getElementById('sync-text');
+  const dot  = document.getElementById('sync-dot');
+  const txt  = document.getElementById('sync-text');
+  const btn  = document.getElementById('sync-retry-btn');
   if (dot) dot.style.background = color || 'var(--muted)';
   if (txt) txt.textContent = text;
+  if (btn) btn.style.display = (color === 'var(--red)') ? 'inline-block' : 'none';
 }
 
 // ═══════════════ AUTH ═══════════════
@@ -1155,8 +1158,13 @@ async function sheetsGet(range) {
   }
   const r = await fetch(WORKER+'/sheets/get?range='+encodeURIComponent(range),
     { headers:{ 'X-User-Email': currentUser.email||'' } });
-  if (!r.ok) throw new Error('Read failed '+r.status);
-  return (await r.json()).values || [];
+  if (!r.ok) {
+    const txt = await r.text().catch(()=>'');
+    throw new Error('Worker read failed '+r.status+': '+txt.slice(0,200));
+  }
+  const data = await r.json();
+  if (data.error) throw new Error('Worker error: '+data.error);
+  return data.values || [];
 }
 
 // ── Parse append-only sheet into deduplicated records ──
@@ -1331,6 +1339,7 @@ async function loadAllData() {
     if (writes.length) await Promise.all(writes);
 
     setSyncStatus('Synced ✓','var(--accent)');
+    dataLoaded = true;
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
@@ -1346,13 +1355,17 @@ async function loadAllData() {
       if (tab==='pending')   renderPending();
     }
   } catch(e) {
-    setSyncStatus('Offline – local data','var(--red)');
-    console.error('loadAllData error:', e);
+    setSyncStatus('Sync error — check console','var(--red)');
+    console.error('loadAllData error:', e.message, e);
+    // Show a visible error so you know what went wrong
+    const dot = document.getElementById('sync-text');
+    if (dot) dot.title = e.message;
     incomeData   = load('pw_income',[]);
     expenseData  = load('pw_expenses',[]);
     scheduleData = load('pw_schedule',[]);
     customerData = load('pw_customers',[]);
     employeeData = []; pendingData = []; notifData = [];
+    dataLoaded = false; // don't trigger employee modal on failed load
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
@@ -1428,6 +1441,7 @@ let jobPhotos    = load('pw_job_photos', {});
 
 // Current signed-in user
 let currentUser  = { email: '', name: '', isAdmin: false };
+let dataLoaded   = false; // true once sheet data has been successfully fetched
 let assignJobId  = null;  // job being assigned employees
 let editingPendingId = null; // pending record being reviewed
 let editingEmployeeId = null;
@@ -1461,11 +1475,12 @@ function getJobsForCustomer(c) {
 
 async function checkEmployeeStatus() {
   if (IS_PREVIEW) return;
+  if (!dataLoaded) return; // don't prompt if we couldn't load data — could be a network issue
   const email = currentUser.email.toLowerCase();
 
   // Admin is always auto-approved — create their profile silently if missing
   if (currentUser.isAdmin) {
-    const exists = employeeData.find(e => e.gmail.toLowerCase() === email);
+    const exists = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email);
     if (!exists) {
       employeeData.push({
         id: Date.now(),
@@ -1481,15 +1496,14 @@ async function checkEmployeeStatus() {
   }
 
   // Non-admin: check if approved employee
-  const approved = employeeData.find(e => e.gmail.toLowerCase() === email && e.status === 'approved');
+  const approved = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email && e.status === 'approved');
   if (approved) return;
 
   // Check if already applied and pending
-  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy.toLowerCase() === email && p.status === 'pending');
+  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy && p.submittedBy.toLowerCase() === email && p.status === 'pending');
   if (applied) { showPendingMessage(); return; }
 
-  // If previously declined or removed — fall through and show the setup form again so they reapply
-  // New user OR returning user with no active record — show setup modal
+  // New user or returning user with no active record — show setup modal
   document.getElementById('emp-setup-gmail').value = currentUser.email;
   document.getElementById('emp-setup-name').value = currentUser.name || '';
   document.getElementById('modal-employee-setup').classList.add('open');
