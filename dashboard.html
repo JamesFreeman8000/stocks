@@ -1520,6 +1520,8 @@ async function checkEmployeeStatus() {
   if (applied) { showPendingMessage(); return; }
 
   // New or returning user — show setup modal
+  // Hard guard: never show this to the admin email no matter what
+  if (currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
   document.getElementById('emp-setup-gmail').value = currentUser.email;
   document.getElementById('emp-setup-name').value = currentUser.name || '';
   document.getElementById('modal-employee-setup').classList.add('open');
@@ -1532,6 +1534,11 @@ function showPendingMessage() {
 }
 
 async function submitEmployeeApplication() {
+  // Hard block — admin should never submit an application
+  if (currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    closeModal('employee-setup');
+    return;
+  }
   const name  = document.getElementById('emp-setup-name').value.trim();
   const phone = document.getElementById('emp-setup-phone').value.trim();
   if (!name) { alert('Please enter your name.'); return; }
@@ -2077,6 +2084,18 @@ function showTab(tab) {
 
 // ═══════════════ MODALS ═══════════════
 function closeModal(type) { document.getElementById('modal-'+type).classList.remove('open'); }
+
+// Nuclear option: MutationObserver watches the setup modal — if it ever opens for admin, close it instantly
+document.addEventListener('DOMContentLoaded', () => {
+  const setupModal = document.getElementById('modal-employee-setup');
+  if (!setupModal) return;
+  new MutationObserver(() => {
+    if (setupModal.classList.contains('open') &&
+        currentUser.email && currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+      setupModal.classList.remove('open');
+    }
+  }).observe(setupModal, { attributes: true, attributeFilter: ['class'] });
+});
 document.querySelectorAll('.modal-overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
 });
