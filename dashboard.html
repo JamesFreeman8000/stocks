@@ -978,7 +978,16 @@ window.onload = function() {
     return;
   }
   const cached = sessionStorage.getItem('gtoken');
-  if (cached) { accessToken = cached; hideLoginScreen(); loadAllData(); return; }
+  if (cached) {
+    accessToken = cached;
+    hideLoginScreen();
+    loadAllData();
+    // Schedule silent refresh based on stored expiry
+    const wait2 = setInterval(() => {
+      if (window.google) { clearInterval(wait2); initGoogleAuth(); checkCachedTokenExpiry(); }
+    }, 100);
+    return;
+  }
   const wait = setInterval(() => {
     if (window.google) { clearInterval(wait); initGoogleAuth(); }
   }, 100);
@@ -1023,12 +1032,46 @@ function initGoogleAuth() {
         if (resp.error) { showLoginBtn('Sign-in error: '+resp.error); return; }
         accessToken = resp.access_token;
         sessionStorage.setItem('gtoken', accessToken);
+        // Store expiry time (tokens last 1 hour, refresh at 50 min)
+        const expiry = Date.now() + 50 * 60 * 1000;
+        sessionStorage.setItem('gtokenExpiry', String(expiry));
+        scheduleTokenRefresh(50 * 60 * 1000);
         hideLoginScreen();
         loadAllData();
       },
     });
     showLoginBtn();
   } catch(e) { showLoginBtn('Google Sign-In failed to initialize: '+e.message); }
+}
+
+let tokenRefreshTimer = null;
+
+function scheduleTokenRefresh(msFromNow) {
+  if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
+  tokenRefreshTimer = setTimeout(() => {
+    silentTokenRefresh();
+  }, msFromNow);
+}
+
+function silentTokenRefresh() {
+  if (!tokenClient) return;
+  // prompt:'' means no popup — silently refreshes if user is still signed into Google
+  tokenClient.requestAccessToken({ prompt: '' });
+}
+
+// On page load, check if existing cached token is still fresh enough
+// and schedule a refresh for the remaining time
+function checkCachedTokenExpiry() {
+  const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
+  if (!expiry) return;
+  const remaining = expiry - Date.now();
+  if (remaining > 60000) {
+    // Still has more than 1 min left — schedule refresh at the right time
+    scheduleTokenRefresh(remaining);
+  } else {
+    // Already expired or nearly expired — refresh now silently
+    silentTokenRefresh();
+  }
 }
 
 function signIn() {
@@ -1042,8 +1085,25 @@ function signOut() {
   if (accessToken) { try { google.accounts.oauth2.revoke(accessToken); } catch(e){} }
   accessToken = null;
   sessionStorage.removeItem('gtoken');
+  sessionStorage.removeItem('gtokenExpiry');
+  if (tokenRefreshTimer) clearTimeout(tokenRefreshTimer);
   location.reload();
 }
+
+// When user comes back to the tab after being away, check if token needs refreshing
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW) {
+    const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
+    const remaining = expiry - Date.now();
+    if (remaining < 5 * 60 * 1000) {
+      // Less than 5 minutes left — refresh now
+      silentTokenRefresh();
+    }
+    // Also resync data in case anything changed
+    setSyncStatus('Syncing...', 'var(--yellow)');
+    loadAllData();
+  }
+});
 
 function showLoginBtn(error) {
   document.getElementById('login-status').textContent = 'Sign in to sync your data across all devices';
@@ -1082,27 +1142,114 @@ async function identifyUser() {
   }
 }
 
-// ═══════════════ SHEETS API ═══════════════
+// ═══════════════ SHEETS API (via Cloudflare Worker — append-only) ═══════════════
+const WORKER = 'https://dashboard-sheets.jamesfreeman8000.workers.dev';
+
+// ── Read: fetch all rows, resolve latest version of each record ──
 async function sheetsGet(range) {
-  const r = await fetch(API_BASE+'/values/'+encodeURIComponent(range), {
-    headers: { Authorization: 'Bearer '+accessToken }
-  });
-  if (r.status === 401) { sessionStorage.removeItem('gtoken'); location.reload(); }
+  if (IS_PREVIEW) {
+    const r = await fetch(API_BASE+'/values/'+encodeURIComponent(range),
+      { headers:{ Authorization:'Bearer '+accessToken } });
+    if (!r.ok) throw new Error('Read failed '+r.status);
+    return (await r.json()).values || [];
+  }
+  const r = await fetch(WORKER+'/sheets/get?range='+encodeURIComponent(range),
+    { headers:{ 'X-User-Email': currentUser.email||'' } });
   if (!r.ok) throw new Error('Read failed '+r.status);
   return (await r.json()).values || [];
 }
 
-async function sheetsWrite(sheetName, rows) {
-  // Clear old data then write fresh
-  await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A:Z')+':clear', {
-    method:'POST', headers:{ Authorization:'Bearer '+accessToken }
+// ── Parse append-only sheet into deduplicated records ──
+// Rows with _deleted=true are excluded. Latest _ts wins for each ID.
+function resolveRows(allRows, headers) {
+  if (!allRows || allRows.length < 2) return [];
+  const headerRow = allRows[0];
+  // Find _ts and _deleted column indices
+  const tsIdx  = headerRow.indexOf('_ts');
+  const delIdx = headerRow.indexOf('_deleted');
+  const dataRows = allRows.slice(1);
+  const map = new Map();
+  dataRows.forEach(row => {
+    const id  = row[0];
+    const ts  = tsIdx  >= 0 ? (row[tsIdx]  || '') : '';
+    const del = delIdx >= 0 ? (row[delIdx] || '') : '';
+    const prev = map.get(id);
+    if (!prev || ts > prev.ts) map.set(id, { row, ts, del });
   });
-  const r = await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A1')+'?valueInputOption=RAW', {
-    method:'PUT',
-    headers:{ Authorization:'Bearer '+accessToken, 'Content-Type':'application/json' },
-    body: JSON.stringify({ values: rows })
+  const result = [];
+  map.forEach(({ row, del }) => {
+    if (del !== 'true') result.push(row.slice(0, headers.length));
   });
-  if (!r.ok) throw new Error('Write failed '+r.status);
+  return result;
+}
+
+// ── Write: append new/updated rows ──
+async function sheetsAppend(sheetName, rows, headers) {
+  if (IS_PREVIEW) {
+    // Preview: just do a full rewrite for simplicity
+    const token = accessToken;
+    await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A:Z')+':clear',
+      { method:'POST', headers:{ Authorization:'Bearer '+token } });
+    await fetch(API_BASE+'/values/'+encodeURIComponent(sheetName+'!A1')+'?valueInputOption=RAW', {
+      method:'PUT',
+      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ values: [headers, ...rows] })
+    });
+    return;
+  }
+  const r = await fetch(WORKER+'/sheets/append', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
+    body: JSON.stringify({ sheetName, rows, headers }),
+  });
+  if (!r.ok) throw new Error('Append failed '+r.status+': '+(await r.text()));
+}
+
+// ── Delete: append a tombstone row ──
+async function sheetsDelete(sheetName, id) {
+  if (IS_PREVIEW) return; // preview handles deletes via full rewrite in syncSheet
+  const r = await fetch(WORKER+'/sheets/delete', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
+    body: JSON.stringify({ sheetName, id: String(id), idColIndex: 0 }),
+  });
+  if (!r.ok) throw new Error('Delete failed '+r.status);
+}
+
+// ── Compact: rewrite sheet keeping only latest records (called after bulk changes) ──
+async function sheetsCompact(sheetName, headers) {
+  if (IS_PREVIEW) return;
+  const r = await fetch(WORKER+'/sheets/compact', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
+    body: JSON.stringify({ sheetName, headers }),
+  });
+  if (!r.ok) throw new Error('Compact failed '+r.status);
+}
+
+// ── Ensure sheet tabs exist ──
+async function ensureSheets() {
+  if (IS_PREVIEW) {
+    const token = accessToken;
+    const r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID,
+      { headers:{ Authorization:'Bearer '+token } });
+    const meta = await r.json();
+    const existing = meta.sheets.map(s=>s.properties.title);
+    const needed = Object.values(SHEETS).filter(n=>!existing.includes(n));
+    if (!needed.length) return;
+    await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+':batchUpdate', {
+      method:'POST',
+      headers:{ Authorization:'Bearer '+token, 'Content-Type':'application/json' },
+      body: JSON.stringify({ requests: needed.map(title=>({ addSheet:{ properties:{ title } } })) })
+    });
+    return;
+  }
+  const r = await fetch(WORKER+'/sheets/ensure', {
+    method: 'POST',
+    headers: { 'Content-Type':'application/json', 'X-User-Email': currentUser.email||'' },
+    body: JSON.stringify({ sheetNames: Object.values(SHEETS) }),
+  });
+  if (!r.ok) throw new Error('Ensure failed '+r.status);
 }
 
 function rowToObj(headers, row) {
@@ -1135,82 +1282,68 @@ function objToRow(headers, obj) {
   });
 }
 
-async function ensureSheets() {
-  const r = await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID, {
-    headers:{ Authorization:'Bearer '+accessToken }
-  });
-  const meta = await r.json();
-  const existing = meta.sheets.map(s => s.properties.title);
-  const needed = Object.values(SHEETS).filter(n => !existing.includes(n));
-  if (!needed.length) return;
-  await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID+':batchUpdate', {
-    method:'POST',
-    headers:{ Authorization:'Bearer '+accessToken, 'Content-Type':'application/json' },
-    body: JSON.stringify({ requests: needed.map(title => ({ addSheet:{ properties:{ title } } })) })
-  });
-}
 
 async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await ensureSheets();
     await identifyUser();
+    // Fetch full column range to include _ts and _deleted columns
     const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
-      sheetsGet(SHEETS.income+'!A1:M'),
-      sheetsGet(SHEETS.expenses+'!A1:I'),
-      sheetsGet(SHEETS.schedule+'!A1:K'),
-      sheetsGet(SHEETS.customers+'!A1:G'),
-      sheetsGet(SHEETS.employees+'!A1:F'),
-      sheetsGet(SHEETS.pending+'!A1:K'),
-      sheetsGet(SHEETS.notifications+'!A1:F'),
+      sheetsGet(SHEETS.income+'!A:Z'),
+      sheetsGet(SHEETS.expenses+'!A:Z'),
+      sheetsGet(SHEETS.schedule+'!A:Z'),
+      sheetsGet(SHEETS.customers+'!A:Z'),
+      sheetsGet(SHEETS.employees+'!A:Z'),
+      sheetsGet(SHEETS.pending+'!A:Z'),
+      sheetsGet(SHEETS.notifications+'!A:Z'),
     ]);
-    const parse = (rows, headers) => rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : null;
-    const fromSheet = {
-      income:    parse(incRows,    INCOME_HEADERS),
-      expenses:  parse(expRows,    EXPENSE_HEADERS),
-      schedule:  parse(schRows,    SCHEDULE_HEADERS),
-      customers: parse(cusRows,    CUSTOMER_HEADERS),
-      employees: parse(empRows,    EMPLOYEE_HEADERS),
-      pending:   parse(penRows,    PENDING_HEADERS),
-      notifs:    parse(notifRows,  NOTIF_HEADERS),
-    };
-    incomeData   = fromSheet.income    || load('pw_income',[]);
-    expenseData  = fromSheet.expenses  || load('pw_expenses',[]);
-    scheduleData = fromSheet.schedule  || load('pw_schedule',[]);
-    customerData = fromSheet.customers || load('pw_customers',[]);
-    employeeData = fromSheet.employees || [];
-    pendingData  = fromSheet.pending   || [];
-    notifData    = fromSheet.notifs    || [];
 
+    // resolveRows deduplicates by ID, strips _ts/_deleted, respects tombstones
+    const parseAppend = (rows, headers) => {
+      if (!rows || rows.length < 2) return null;
+      const resolved = resolveRows(rows, headers);
+      return resolved.length ? resolved.map(r => rowToObj(headers, r)) : null;
+    };
+    // Fallback: plain parse for first-time sheets that have no _ts column yet
+    const parsePlain = (rows, headers) =>
+      rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : null;
+
+    const hasTS = (rows) => rows[0] && rows[0].includes('_ts');
+
+    incomeData   = (hasTS(incRows)   ? parseAppend(incRows,   INCOME_HEADERS)   : parsePlain(incRows,   INCOME_HEADERS))   || load('pw_income',[]);
+    expenseData  = (hasTS(expRows)   ? parseAppend(expRows,   EXPENSE_HEADERS)  : parsePlain(expRows,   EXPENSE_HEADERS))  || load('pw_expenses',[]);
+    scheduleData = (hasTS(schRows)   ? parseAppend(schRows,   SCHEDULE_HEADERS) : parsePlain(schRows,   SCHEDULE_HEADERS)) || load('pw_schedule',[]);
+    customerData = (hasTS(cusRows)   ? parseAppend(cusRows,   CUSTOMER_HEADERS) : parsePlain(cusRows,   CUSTOMER_HEADERS)) || load('pw_customers',[]);
+    employeeData = (hasTS(empRows)   ? parseAppend(empRows,   EMPLOYEE_HEADERS) : parsePlain(empRows,   EMPLOYEE_HEADERS)) || [];
+    pendingData  = (hasTS(penRows)   ? parseAppend(penRows,   PENDING_HEADERS)  : parsePlain(penRows,   PENDING_HEADERS))  || [];
+    notifData    = (hasTS(notifRows) ? parseAppend(notifRows, NOTIF_HEADERS)    : parsePlain(notifRows, NOTIF_HEADERS))    || [];
+
+    // First-time migration: if sheets are empty, write existing localStorage data as initial rows
     const writes = [];
-    if (!fromSheet.income)    writes.push(syncSheet('income'));
-    if (!fromSheet.expenses)  writes.push(syncSheet('expenses'));
-    if (!fromSheet.schedule)  writes.push(syncSheet('schedule'));
-    if (!fromSheet.customers) writes.push(syncSheet('customers'));
-    if (!fromSheet.employees) writes.push(syncSheet('employees'));
-    if (!fromSheet.pending)   writes.push(syncSheet('pending'));
-    if (!fromSheet.notifs)    writes.push(syncSheet('notifications'));
+    if (!incRows.length  || incRows.length  < 2) writes.push(syncSheet('income'));
+    if (!expRows.length  || expRows.length  < 2) writes.push(syncSheet('expenses'));
+    if (!schRows.length  || schRows.length  < 2) writes.push(syncSheet('schedule'));
+    if (!cusRows.length  || cusRows.length  < 2) writes.push(syncSheet('customers'));
+    if (!empRows.length  || empRows.length  < 2) writes.push(syncSheet('employees'));
+    if (!penRows.length  || penRows.length  < 2) writes.push(syncSheet('pending'));
+    if (!notifRows.length|| notifRows.length< 2) writes.push(syncSheet('notifications'));
     if (writes.length) await Promise.all(writes);
 
     setSyncStatus('Synced ✓','var(--accent)');
-
-    // Check if this non-admin user needs to set up their profile or is pending
-    if (!currentUser.isAdmin) {
-      await checkEmployeeStatus();
-    }
-
+    await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
     const active = document.querySelector('.tab-content.active');
     if (active) {
       const tab = active.id.replace('tab-','');
-      if (tab==='income') renderIncome();
-      if (tab==='expenses') renderExpenses();
-      if (tab==='schedule') renderCalendar();
+      if (tab==='income')    renderIncome();
+      if (tab==='expenses')  renderExpenses();
+      if (tab==='schedule')  renderCalendar();
       if (tab==='customers') renderCustomers();
-      if (tab==='reports') renderReports();
+      if (tab==='reports')   renderReports();
       if (tab==='employees') renderEmployees();
-      if (tab==='pending') renderPending();
+      if (tab==='pending')   renderPending();
     }
   } catch(e) {
     setSyncStatus('Offline – local data','var(--red)');
@@ -1219,17 +1352,14 @@ async function loadAllData() {
     expenseData  = load('pw_expenses',[]);
     scheduleData = load('pw_schedule',[]);
     customerData = load('pw_customers',[]);
-    employeeData = [];
-    pendingData  = [];
-    notifData    = [];
-    if (!currentUser.isAdmin) await checkEmployeeStatus();
+    employeeData = []; pendingData = []; notifData = [];
+    await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
   }
 }
 
-async function syncSheet(type) {
-  if (IS_PREVIEW) { setSyncStatus('Preview mode','var(--purple)'); return; }
+async function syncSheet(type, deletedId) {
   const map = {
     income:        { headers:INCOME_HEADERS,   data:incomeData,   sheet:SHEETS.income },
     expenses:      { headers:EXPENSE_HEADERS,  data:expenseData,  sheet:SHEETS.expenses },
@@ -1243,14 +1373,46 @@ async function syncSheet(type) {
   const { headers, data, sheet } = entry;
   setSyncStatus('Saving...','var(--yellow)');
   try {
-    const rows = [headers, ...data.map(obj=>objToRow(headers,obj))];
-    await sheetsWrite(sheet, rows);
+    if (IS_PREVIEW) {
+      setSyncStatus('Preview mode','var(--purple)');
+      if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
+      return;
+    }
+    if (deletedId !== undefined) {
+      await sheetsDelete(sheet, deletedId);
+    } else {
+      const rows = data.map(obj => objToRow(headers, obj));
+      await sheetsAppend(sheet, rows, headers);
+    }
     if (['income','expenses','schedule','customers'].includes(type)) save('pw_'+type, data);
     setSyncStatus('Saved ✓','var(--accent)');
     setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
   } catch(e) {
     setSyncStatus('Save failed','var(--red)');
     console.error('syncSheet error:', e);
+  }
+}
+
+async function syncRecord(type, obj) {
+  const map = {
+    income:        { headers:INCOME_HEADERS,   sheet:SHEETS.income },
+    expenses:      { headers:EXPENSE_HEADERS,  sheet:SHEETS.expenses },
+    schedule:      { headers:SCHEDULE_HEADERS, sheet:SHEETS.schedule },
+    customers:     { headers:CUSTOMER_HEADERS, sheet:SHEETS.customers },
+    employees:     { headers:EMPLOYEE_HEADERS, sheet:SHEETS.employees },
+    pending:       { headers:PENDING_HEADERS,  sheet:SHEETS.pending },
+    notifications: { headers:NOTIF_HEADERS,    sheet:SHEETS.notifications },
+  };
+  const entry = map[type]; if (!entry) return;
+  if (IS_PREVIEW) { setSyncStatus('Preview mode','var(--purple)'); return; }
+  setSyncStatus('Saving...','var(--yellow)');
+  try {
+    await sheetsAppend(entry.sheet, [objToRow(entry.headers, obj)], entry.headers);
+    setSyncStatus('Saved ✓','var(--accent)');
+    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),2000);
+  } catch(e) {
+    setSyncStatus('Save failed','var(--red)');
+    console.error('syncRecord error:', e);
   }
 }
 
@@ -1298,18 +1460,36 @@ function getJobsForCustomer(c) {
 // ═══════════════ EMPLOYEE SYSTEM ═══════════════
 
 async function checkEmployeeStatus() {
-  if (IS_PREVIEW || currentUser.isAdmin) return;
-  const email = currentUser.email;
-  // Check if approved employee
-  const approved = employeeData.find(e => e.gmail.toLowerCase() === email && e.status === 'approved');
-  if (approved) return; // good to go
-  // Check if already applied (pending)
-  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy.toLowerCase() === email && p.status === 'pending');
-  if (applied) {
-    showPendingMessage();
-    return;
+  if (IS_PREVIEW) return;
+  const email = currentUser.email.toLowerCase();
+
+  // Admin is always auto-approved — create their profile silently if missing
+  if (currentUser.isAdmin) {
+    const exists = employeeData.find(e => e.gmail.toLowerCase() === email);
+    if (!exists) {
+      employeeData.push({
+        id: Date.now(),
+        gmail: currentUser.email,
+        name: currentUser.name || 'James Freeman',
+        phone: '',
+        employmentDate: new Date().toISOString().split('T')[0],
+        status: 'approved',
+      });
+      await syncSheet('employees');
+    }
+    return; // admin always gets full access, no setup modal ever
   }
-  // New user — show setup modal
+
+  // Non-admin: check if approved employee
+  const approved = employeeData.find(e => e.gmail.toLowerCase() === email && e.status === 'approved');
+  if (approved) return;
+
+  // Check if already applied and pending
+  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy.toLowerCase() === email && p.status === 'pending');
+  if (applied) { showPendingMessage(); return; }
+
+  // If previously declined or removed — fall through and show the setup form again so they reapply
+  // New user OR returning user with no active record — show setup modal
   document.getElementById('emp-setup-gmail').value = currentUser.email;
   document.getElementById('emp-setup-name').value = currentUser.name || '';
   document.getElementById('modal-employee-setup').classList.add('open');
@@ -1793,8 +1973,11 @@ async function saveEmployeeEdit() {
 }
 
 async function deleteEmployee(gmail) {
+  // Remove from employees list
   employeeData = employeeData.filter(e => e.gmail !== gmail);
-  await syncSheet('employees');
+  // Also wipe all previous pending entries for this gmail so they must reapply from scratch
+  pendingData = pendingData.filter(p => p.submittedBy.toLowerCase() !== gmail.toLowerCase());
+  await Promise.all([syncSheet('employees'), syncSheet('pending')]);
   renderEmployees();
 }
 
@@ -1985,8 +2168,8 @@ function saveIncome() {
 }
 
 function deleteIncome(id) {
-  incomeData = incomeData.filter(r => r.id!==id);
-  syncSheet('income');
+  const _did=id; incomeData = incomeData.filter(r => r.id!==id);
+  syncSheet('income', _did);
   renderIncome(); renderHomeStats();
 }
 
@@ -2095,8 +2278,8 @@ function saveExpense() {
 }
 
 function deleteExpense(id) {
-  expenseData = expenseData.filter(r=>r.id!==id);
-  syncSheet('expenses');
+  const _did=id; expenseData = expenseData.filter(r=>r.id!==id);
+  syncSheet('expenses', _did);
   renderExpenses(); renderHomeStats();
 }
 
@@ -2201,8 +2384,8 @@ function saveEditEvent() {
   renderCalendar();
 }
 
-function deleteEvent(id) { scheduleData=scheduleData.filter(r=>r.id!==id);
-  syncSheet('schedule'); renderCalendar(); }
+function deleteEvent(id) { const _did=id; scheduleData=scheduleData.filter(r=>r.id!==id);
+  syncSheet('schedule', _did); renderCalendar(); }
 function changeMonth(dir) { calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;}if(calMonth<0){calMonth=11;calYear--;} renderCalendar(); }
 
 let markCompleteId = null;
@@ -2348,8 +2531,8 @@ function saveCustomer() {
 }
 
 function deleteCustomer(id) {
-  customerData=customerData.filter(r=>r.id!==id);
-  syncSheet('customers');
+  const _did=id; customerData=customerData.filter(r=>r.id!==id);
+  syncSheet('customers', _did);
   renderCustomers();
 }
 
