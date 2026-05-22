@@ -983,9 +983,12 @@ window.onload = function() {
   const cached = sessionStorage.getItem('gtoken');
   if (cached) {
     accessToken = cached;
+    // Restore cached user identity immediately
+    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase();
+    currentUser.name    = sessionStorage.getItem('userName') || '';
+    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
     hideLoginScreen();
     loadAllData();
-    // Schedule silent refresh based on stored expiry
     const wait2 = setInterval(() => {
       if (window.google) { clearInterval(wait2); initGoogleAuth(); checkCachedTokenExpiry(); }
     }, 100);
@@ -1035,12 +1038,14 @@ function initGoogleAuth() {
         if (resp.error) { showLoginBtn('Sign-in error: '+resp.error); return; }
         accessToken = resp.access_token;
         sessionStorage.setItem('gtoken', accessToken);
-        // Store expiry time (tokens last 1 hour, refresh at 50 min)
         const expiry = Date.now() + 50 * 60 * 1000;
         sessionStorage.setItem('gtokenExpiry', String(expiry));
         scheduleTokenRefresh(50 * 60 * 1000);
-        hideLoginScreen();
-        loadAllData();
+        // Identify user immediately so hideLoginScreen can do admin check
+        identifyUser().then(() => {
+          hideLoginScreen();
+          loadAllData();
+        });
       },
     });
     showLoginBtn();
@@ -1121,6 +1126,11 @@ function hideLoginScreen() {
   document.getElementById('login-screen').style.display = 'none';
   const sd = document.getElementById('sidebar-date');
   if (sd) sd.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  // Immediately close setup modal if admin — before data even loads
+  if (currentUser.isAdmin) {
+    const m = document.getElementById('modal-employee-setup');
+    if (m) m.classList.remove('open');
+  }
 }
 
 async function identifyUser() {
@@ -1475,24 +1485,30 @@ function getJobsForCustomer(c) {
 
 async function checkEmployeeStatus() {
   if (IS_PREVIEW) return;
-  if (!dataLoaded) return; // don't prompt if we couldn't load data — could be a network issue
+  if (!dataLoaded) return;
+
   const email = currentUser.email.toLowerCase();
 
-  // Admin is always auto-approved — create their profile silently if missing
+  // Admin check is purely email-based — never depends on employeeData being populated
   if (currentUser.isAdmin) {
+    // Silently create admin profile in sheet if not already there
     const exists = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email);
     if (!exists) {
-      employeeData.push({
+      const adminEntry = {
         id: Date.now(),
         gmail: currentUser.email,
         name: currentUser.name || 'James Freeman',
         phone: '',
         employmentDate: new Date().toISOString().split('T')[0],
         status: 'approved',
-      });
-      await syncSheet('employees');
+      };
+      employeeData.push(adminEntry);
+      syncRecord('employees', adminEntry); // non-blocking — don't await
     }
-    return; // admin always gets full access, no setup modal ever
+    // Always close any modal that may have opened and show the dashboard
+    closeModal('employee-setup');
+    document.getElementById('login-screen').style.display = 'none';
+    return;
   }
 
   // Non-admin: check if approved employee
@@ -1503,7 +1519,7 @@ async function checkEmployeeStatus() {
   const applied = pendingData.find(p => p.type === 'application' && p.submittedBy && p.submittedBy.toLowerCase() === email && p.status === 'pending');
   if (applied) { showPendingMessage(); return; }
 
-  // New user or returning user with no active record — show setup modal
+  // New or returning user — show setup modal
   document.getElementById('emp-setup-gmail').value = currentUser.email;
   document.getElementById('emp-setup-name').value = currentUser.name || '';
   document.getElementById('modal-employee-setup').classList.add('open');
