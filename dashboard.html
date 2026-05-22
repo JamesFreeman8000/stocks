@@ -994,12 +994,11 @@ window.onload = function() {
   const cached = sessionStorage.getItem('gtoken');
   if (cached) {
     accessToken = cached;
-    // Restore cached user identity immediately
-    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase();
+    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
     currentUser.name    = sessionStorage.getItem('userName') || '';
     currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
-    // If admin, permanently disable the setup modal right now before anything loads
     if (currentUser.isAdmin) blockSetupModal();
+    checkEmployeeStatus(); // kill modal immediately before data loads
     hideLoginScreen();
     loadAllData();
     const wait2 = setInterval(() => {
@@ -1506,43 +1505,39 @@ function getJobsForCustomer(c) {
 
 async function checkEmployeeStatus() {
   if (IS_PREVIEW) return;
-  if (!dataLoaded) return;
 
-  const email = currentUser.email.toLowerCase();
-
-  // Admin check is purely email-based — never depends on employeeData being populated
-  if (currentUser.isAdmin) {
-    // Silently create admin profile in sheet if not already there
-    const exists = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email);
-    if (!exists) {
-      const adminEntry = {
-        id: Date.now(),
-        gmail: currentUser.email,
-        name: currentUser.name || 'James Freeman',
-        phone: '',
-        employmentDate: new Date().toISOString().split('T')[0],
-        status: 'approved',
-      };
-      employeeData.push(adminEntry);
-      syncRecord('employees', adminEntry); // non-blocking — don't await
-    }
-    // Always close any modal that may have opened and show the dashboard
-    closeModal('employee-setup');
+  // ADMIN: bypass everything — email match is the only check that matters
+  const isAdmin = currentUser.email.toLowerCase().trim() === 'jamesfreeman8000@gmail.com';
+  if (isAdmin) {
+    document.getElementById('modal-employee-setup').style.setProperty('display','none','important');
+    document.getElementById('modal-employee-setup').classList.remove('open');
     document.getElementById('login-screen').style.display = 'none';
+    // Create profile silently if needed (non-blocking)
+    if (dataLoaded) {
+      const exists = employeeData.find(e => e.gmail && e.gmail.toLowerCase().trim() === 'jamesfreeman8000@gmail.com');
+      if (!exists) {
+        const adminEntry = { id: Date.now(), gmail: currentUser.email, name: currentUser.name || 'James Freeman', phone: '', employmentDate: new Date().toISOString().split('T')[0], status: 'approved' };
+        employeeData.push(adminEntry);
+        syncRecord('employees', adminEntry);
+      }
+    }
     return;
   }
 
+  if (!dataLoaded) return;
+
+  const email = currentUser.email.toLowerCase().trim();
+
   // Non-admin: check if approved employee
-  const approved = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email && e.status === 'approved');
+  const approved = employeeData.find(e => e.gmail && e.gmail.toLowerCase().trim() === email && e.status === 'approved');
   if (approved) return;
 
   // Check if already applied and pending
-  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy && p.submittedBy.toLowerCase() === email && p.status === 'pending');
+  const applied = pendingData.find(p => p.type === 'application' && p.submittedBy && p.submittedBy.toLowerCase().trim() === email && p.status === 'pending');
   if (applied) { showPendingMessage(); return; }
 
   // New or returning user — show setup modal
-  // Hard guard: never show this to the admin email no matter what
-  if (currentUser.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) return;
+  if (email === 'jamesfreeman8000@gmail.com') return; // final hard stop for admin
   document.getElementById('emp-setup-gmail').value = currentUser.email;
   document.getElementById('emp-setup-name').value = currentUser.name || '';
   document.getElementById('modal-employee-setup').classList.add('open');
