@@ -987,34 +987,34 @@ const IS_PREVIEW = !window.location.hostname.includes('github.io');
 window.onload = function() {
   if (IS_PREVIEW) { hideLoginScreen(); loadPreviewData(); return; }
 
-  const cached = sessionStorage.getItem('gtoken');
-  if (cached) {
-    accessToken = cached;
-    // Restore from sessionStorage immediately
-    const savedEmail = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
-    currentUser.email   = savedEmail;
-    currentUser.name    = sessionStorage.getItem('userName') || '';
-    currentUser.isAdmin = savedEmail === ADMIN_EMAIL.toLowerCase();
-    if (currentUser.isAdmin) blockSetupModal();
-    checkEmployeeStatus();
-    hideLoginScreen();
-    // Init Google auth first so we can refresh the token if needed
-    const wait2 = setInterval(() => {
-      if (window.google) {
-        clearInterval(wait2);
-        initGoogleAuth();
-        // Try to get a fresh token silently, then load data
-        tokenClient.requestAccessToken({ prompt: '' });
-      }
-    }, 100);
-    return;
-  }
-
-  // No cached token — show sign-in button
   const wait = setInterval(() => {
-    if (window.google) { clearInterval(wait); initGoogleAuth(); }
+    if (!window.google) return;
+    clearInterval(wait);
+    initGoogleAuth();
+
+    const cached = sessionStorage.getItem('gtoken');
+    const savedEmail = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+
+    if (cached && savedEmail) {
+      // We have both a token and a saved email — restore immediately
+      accessToken = cached;
+      currentUser.email   = savedEmail;
+      currentUser.name    = sessionStorage.getItem('userName') || '';
+      currentUser.isAdmin = savedEmail === ADMIN_EMAIL.toLowerCase();
+      if (currentUser.isAdmin) blockSetupModal();
+      checkEmployeeStatus();
+      hideLoginScreen();
+      loadAllData();
+      checkCachedTokenExpiry();
+    } else {
+      // No valid session — clear everything and show sign-in
+      sessionStorage.removeItem('gtoken');
+      sessionStorage.removeItem('gtokenExpiry');
+      showLoginBtn();
+    }
   }, 100);
-  setTimeout(() => { clearInterval(wait); showLoginBtn('Could not load Google Sign-In. Check your internet connection and refresh.'); }, 8000);
+
+  setTimeout(() => { showLoginBtn('Could not load Google Sign-In. Check your internet connection.'); }, 8000);
 };
 
 function loadPreviewData() {
@@ -1089,29 +1089,26 @@ function scheduleTokenRefresh(msFromNow) {
 
 function silentTokenRefresh() {
   if (!tokenClient) return;
-  // prompt:'' means no popup — silently refreshes if user is still signed into Google
-  tokenClient.requestAccessToken({ prompt: '' });
+  // Only attempt silent refresh — if browser blocks the popup that's fine,
+  // the user will just need to sign in again next session
+  try { tokenClient.requestAccessToken({ prompt: '' }); } catch(e) {}
 }
 
 // On page load, check if existing cached token is still fresh enough
-// and schedule a refresh for the remaining time
 function checkCachedTokenExpiry() {
   const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
   if (!expiry) return;
   const remaining = expiry - Date.now();
   if (remaining > 60000) {
-    // Still has more than 1 min left — schedule refresh at the right time
     scheduleTokenRefresh(remaining);
-  } else {
-    // Already expired or nearly expired — refresh now silently
-    silentTokenRefresh();
   }
+  // Don't try silent refresh on page load — it causes blocked popup errors
 }
 
 function signIn() {
   document.getElementById('sign-in-error').style.display = 'none';
   document.getElementById('login-status').textContent = 'Opening Google sign-in...';
-  tokenClient.requestAccessToken({ prompt: '' });
+  tokenClient.requestAccessToken({ prompt: 'consent' });
 }
 
 function signOut() {
@@ -1169,10 +1166,15 @@ async function identifyUser() {
       headers: { Authorization: 'Bearer ' + accessToken }
     });
     if (r.status === 401) {
-      // Token expired — clear it and request a fresh one silently
+      // Token expired — clear it so next page load shows sign-in
       sessionStorage.removeItem('gtoken');
+      sessionStorage.removeItem('gtokenExpiry');
       accessToken = null;
-      if (tokenClient) tokenClient.requestAccessToken({ prompt: '' });
+      // Fall back to cached email so admin check still works
+      currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+      currentUser.name    = sessionStorage.getItem('userName') || '';
+      currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+      if (currentUser.isAdmin) blockSetupModal();
       return;
     }
     const info = await r.json();
@@ -1183,7 +1185,6 @@ async function identifyUser() {
     sessionStorage.setItem('userName',  currentUser.name);
     if (currentUser.isAdmin) blockSetupModal();
   } catch(e) {
-    // Network error — use cached values
     currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
     currentUser.name    = sessionStorage.getItem('userName') || '';
     currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
