@@ -370,7 +370,7 @@
       </div>
       <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
       <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:0.65rem">Sign Out</button>
-      <button class="btn btn-accent btn-sm" onclick="openModal('income')">+ New Job</button>
+      <button class="btn btn-accent btn-sm" onclick="openNewEventFromTopbar()">+ New Event</button>
     </div>
   </div>
 
@@ -1703,7 +1703,6 @@ async function saveApplicationEdit() {
 
 async function approveApplication(id) {
   const p = pendingData.find(x => x.id == id); if (!p) return;
-  p.status = 'approved';
   const emp = {
     id: Date.now(),
     gmail: p.newData.gmail || p.submittedBy,
@@ -1713,6 +1712,8 @@ async function approveApplication(id) {
     status: 'approved',
   };
   employeeData.push(emp);
+  // Remove from pending entirely so it disappears from the sheet
+  pendingData = pendingData.filter(x => x.id != id);
   await Promise.all([syncSheet('pending'), syncSheet('employees')]);
   await addNotification(p.submittedBy, 'Your employee application has been approved! Welcome to the team.', 'approved');
   renderPending();
@@ -1721,7 +1722,8 @@ async function approveApplication(id) {
 
 async function declineApplication(id) {
   const p = pendingData.find(x => x.id == id); if (!p) return;
-  p.status = 'declined';
+  // Remove declined applications from the sheet too — no need to keep them
+  pendingData = pendingData.filter(x => x.id != id);
   await syncSheet('pending');
   await addNotification(p.submittedBy, 'Your employee application was not approved at this time.', 'rejected');
   renderPending();
@@ -1755,7 +1757,6 @@ function openReviewEdit(id) {
 
 async function approvePendingEdit() {
   const p = pendingData.find(x => x.id == editingPendingId); if (!p) return;
-  // Apply the edit to the actual data
   const newD = p.newData;
   if (p.dataType === 'customer') {
     const idx = customerData.findIndex(x => x.id == p.recordId);
@@ -1767,7 +1768,8 @@ async function approvePendingEdit() {
     const idx = expenseData.findIndex(x => x.id == p.recordId);
     if (idx !== -1) { expenseData[idx] = {...expenseData[idx], ...newD}; await syncSheet('expenses'); }
   }
-  p.status = 'approved';
+  // Remove from pending — keeps the sheet clean
+  pendingData = pendingData.filter(x => x.id != editingPendingId);
   await syncSheet('pending');
   await addNotification(p.submittedBy, 'Your edit request for a '+p.dataType+' record was approved.', 'approved');
   closeModal('review-edit');
@@ -1782,7 +1784,8 @@ async function rejectPendingEdit() {
 
 async function rejectEditById(id) {
   const p = pendingData.find(x => x.id == id); if (!p) return;
-  p.status = 'rejected';
+  // Remove from pending — keeps the sheet clean
+  pendingData = pendingData.filter(x => x.id != id);
   await syncSheet('pending');
   await addNotification(p.submittedBy, 'Your edit request for a '+p.dataType+' record was not approved.', 'rejected');
   renderPending();
@@ -1998,7 +2001,21 @@ async function saveJobEmployees() {
 // ── OVERRIDE saveIncome to auto-tag employee ──
 const _origSaveIncome = saveIncome;
 
-// ═══════════════ MOBILE SIDEBAR ═══════════════
+function openNewEventFromTopbar() {
+  // Clear the form
+  ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  clearCheckedServices('s-services');
+  document.getElementById('s-type').value = 'Job';
+  // Set today's date
+  document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
+  // Open the modal
+  document.getElementById('modal-schedule').classList.add('open');
+}
+
+
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
   document.getElementById('sidebar-overlay').classList.toggle('open');
