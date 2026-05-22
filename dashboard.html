@@ -1126,11 +1126,18 @@ document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW) {
     const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
     if (expiry - Date.now() < 5 * 60 * 1000) silentTokenRefresh();
-    // Reload fresh data — isLoading will block any saves until this completes
     setSyncStatus('Syncing...', 'var(--yellow)');
     await loadAllData();
   }
 });
+
+// Poll every 30 seconds to pick up changes made directly in the sheet
+// or by other users on other devices
+setInterval(async () => {
+  if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW && !isLoading) {
+    await loadAllData();
+  }
+}, 30000);
 
 function showLoginBtn(error) {
   document.getElementById('login-status').textContent = 'Sign in to sync your data across all devices';
