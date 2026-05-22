@@ -1305,7 +1305,11 @@ async function loadAllData() {
     employeeData = parse(empRows,   EMPLOYEE_HEADERS) || [];
     pendingData  = parse(penRows,   PENDING_HEADERS)  || [];
     notifData    = parse(notifRows, NOTIF_HEADERS)    || [];
-    // Write initial data for empty sheets
+
+    // Data is loaded — release the lock so syncSheet can run
+    isLoading = false;
+
+    // Write initial data for empty sheets (first time only)
     const writes = [];
     if (!incRows.length  || incRows.length  < 2) writes.push(syncSheet('income'));
     if (!expRows.length  || expRows.length  < 2) writes.push(syncSheet('expenses'));
@@ -1344,7 +1348,7 @@ async function loadAllData() {
     updateNotificationBadge();
     renderHomeStats();
   } finally {
-    isLoading = false;
+    isLoading = false; // always release the lock
   }
 }
 
