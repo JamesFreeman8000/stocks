@@ -985,27 +985,32 @@ function setSyncStatus(text, color) {
 const IS_PREVIEW = !window.location.hostname.includes('github.io');
 
 window.onload = function() {
-  // If running in Claude preview or locally, skip auth and use sample data
-  if (IS_PREVIEW) {
-    hideLoginScreen();
-    loadPreviewData();
-    return;
-  }
+  if (IS_PREVIEW) { hideLoginScreen(); loadPreviewData(); return; }
+
   const cached = sessionStorage.getItem('gtoken');
   if (cached) {
     accessToken = cached;
-    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+    // Restore from sessionStorage immediately
+    const savedEmail = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+    currentUser.email   = savedEmail;
     currentUser.name    = sessionStorage.getItem('userName') || '';
-    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+    currentUser.isAdmin = savedEmail === ADMIN_EMAIL.toLowerCase();
     if (currentUser.isAdmin) blockSetupModal();
-    checkEmployeeStatus(); // kill modal immediately before data loads
+    checkEmployeeStatus();
     hideLoginScreen();
-    loadAllData();
+    // Init Google auth first so we can refresh the token if needed
     const wait2 = setInterval(() => {
-      if (window.google) { clearInterval(wait2); initGoogleAuth(); checkCachedTokenExpiry(); }
+      if (window.google) {
+        clearInterval(wait2);
+        initGoogleAuth();
+        // Try to get a fresh token silently, then load data
+        tokenClient.requestAccessToken({ prompt: '' });
+      }
     }, 100);
     return;
   }
+
+  // No cached token — show sign-in button
   const wait = setInterval(() => {
     if (window.google) { clearInterval(wait); initGoogleAuth(); }
   }, 100);
@@ -1047,15 +1052,23 @@ function initGoogleAuth() {
       client_id: CLIENT_ID,
       scope: SCOPES,
       callback: (resp) => {
-        if (resp.error) { showLoginBtn('Sign-in error: '+resp.error); return; }
+        if (resp.error) {
+          // If error is interaction_required, show sign-in button
+          if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
+            sessionStorage.removeItem('gtoken');
+            showLoginBtn();
+          }
+          return;
+        }
         accessToken = resp.access_token;
         sessionStorage.setItem('gtoken', accessToken);
         const expiry = Date.now() + 50 * 60 * 1000;
         sessionStorage.setItem('gtokenExpiry', String(expiry));
         scheduleTokenRefresh(50 * 60 * 1000);
-        // Identify user immediately so hideLoginScreen can do admin check
+        // Always identify user fresh from Google before loading anything
         identifyUser().then(() => {
           if (currentUser.isAdmin) blockSetupModal();
+          checkEmployeeStatus();
           hideLoginScreen();
           loadAllData();
         });
@@ -1155,16 +1168,26 @@ async function identifyUser() {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + accessToken }
     });
+    if (r.status === 401) {
+      // Token expired — clear it and request a fresh one silently
+      sessionStorage.removeItem('gtoken');
+      accessToken = null;
+      if (tokenClient) tokenClient.requestAccessToken({ prompt: '' });
+      return;
+    }
     const info = await r.json();
-    currentUser.email = (info.email || '').toLowerCase();
-    currentUser.name  = info.name || '';
+    currentUser.email   = (info.email || '').toLowerCase().trim();
+    currentUser.name    = info.name || '';
     currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
     sessionStorage.setItem('userEmail', currentUser.email);
-    sessionStorage.setItem('userName', currentUser.name);
+    sessionStorage.setItem('userName',  currentUser.name);
+    if (currentUser.isAdmin) blockSetupModal();
   } catch(e) {
-    currentUser.email = sessionStorage.getItem('userEmail') || '';
-    currentUser.name  = sessionStorage.getItem('userName') || '';
+    // Network error — use cached values
+    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+    currentUser.name    = sessionStorage.getItem('userName') || '';
     currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+    if (currentUser.isAdmin) blockSetupModal();
   }
 }
 
