@@ -806,10 +806,21 @@
       <div class="form-group"><label>Gmail (auto-filled)</label><input type="text" id="emp-setup-gmail" readonly style="opacity:0.6"/></div>
     </div>
     <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('employee-setup')" id="emp-setup-cancel" style="display:none">Cancel</button>
       <button class="btn btn-accent" onclick="submitEmployeeApplication()">Submit Application</button>
     </div>
   </div>
 </div>
+<script>
+// Runs immediately — before anything else — to block modal for admin
+(function() {
+  const email = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+  if (email === 'jamesfreeman8000@gmail.com') {
+    const m = document.getElementById('modal-employee-setup');
+    if (m) { m.style.display = 'none'; m.classList.remove('open'); }
+  }
+})();
+</script>
 
 <!-- Pending: Edit Application (Admin edits an applicant's info) -->
 <div class="modal-overlay" id="modal-edit-application">
@@ -2092,13 +2103,15 @@ function closeModal(type) { document.getElementById('modal-'+type).classList.rem
 function blockSetupModal() {
   const modal = document.getElementById('modal-employee-setup');
   if (!modal) return;
-  // Remove from DOM entirely so nothing can open it
-  modal.style.display = 'none';
+  modal.style.setProperty('display', 'none', 'important');
   modal.classList.remove('open');
-  // Override classList.add to be a no-op for this specific modal
+  // Override classList.add so 'open' can never be added for admin
   const origAdd = modal.classList.add.bind(modal.classList);
   modal.classList.add = function(...args) {
-    if (args.includes('open')) return; // block any attempt to open it
+    if (args.includes('open')) {
+      modal.style.setProperty('display', 'none', 'important');
+      return;
+    }
     origAdd(...args);
   };
 }
