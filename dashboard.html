@@ -987,6 +987,8 @@ window.onload = function() {
     currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase();
     currentUser.name    = sessionStorage.getItem('userName') || '';
     currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+    // If admin, permanently disable the setup modal right now before anything loads
+    if (currentUser.isAdmin) blockSetupModal();
     hideLoginScreen();
     loadAllData();
     const wait2 = setInterval(() => {
@@ -1043,6 +1045,7 @@ function initGoogleAuth() {
         scheduleTokenRefresh(50 * 60 * 1000);
         // Identify user immediately so hideLoginScreen can do admin check
         identifyUser().then(() => {
+          if (currentUser.isAdmin) blockSetupModal();
           hideLoginScreen();
           loadAllData();
         });
@@ -2084,6 +2087,21 @@ function showTab(tab) {
 
 // ═══════════════ MODALS ═══════════════
 function closeModal(type) { document.getElementById('modal-'+type).classList.remove('open'); }
+
+// Permanently disables the employee setup modal — called immediately for admin on every page load
+function blockSetupModal() {
+  const modal = document.getElementById('modal-employee-setup');
+  if (!modal) return;
+  // Remove from DOM entirely so nothing can open it
+  modal.style.display = 'none';
+  modal.classList.remove('open');
+  // Override classList.add to be a no-op for this specific modal
+  const origAdd = modal.classList.add.bind(modal.classList);
+  modal.classList.add = function(...args) {
+    if (args.includes('open')) return; // block any attempt to open it
+    origAdd(...args);
+  };
+}
 
 // Nuclear option: MutationObserver watches the setup modal — if it ever opens for admin, close it instantly
 document.addEventListener('DOMContentLoaded', () => {
