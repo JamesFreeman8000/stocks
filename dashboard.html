@@ -951,7 +951,7 @@
 // ═══════════════ CONFIG ═══════════════
 const CLIENT_ID   = '1077914957013-5vd6neifr7vqcvu01c12mtdqko4ihfmq.apps.googleusercontent.com';
 const SHEET_ID    = '1YKFPcaNMqzpFNvF_rz8Cxry8DVv2RfhTsvnY4_us0dI';
-const SCOPES      = 'https://www.googleapis.com/auth/spreadsheets';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets openid email profile';
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications' };
@@ -1161,35 +1161,29 @@ async function identifyUser() {
     currentUser = { email: ADMIN_EMAIL, name: 'James Freeman', isAdmin: true };
     return;
   }
+
+  // Try userinfo endpoint — should work now that we have openid+email+profile scope
   try {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + accessToken }
     });
-    if (r.status === 401) {
-      // Token expired — clear it so next page load shows sign-in
-      sessionStorage.removeItem('gtoken');
-      sessionStorage.removeItem('gtokenExpiry');
-      accessToken = null;
-      // Fall back to cached email so admin check still works
-      currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
-      currentUser.name    = sessionStorage.getItem('userName') || '';
+    if (r.ok) {
+      const info = await r.json();
+      currentUser.email   = (info.email || '').toLowerCase().trim();
+      currentUser.name    = info.name || info.email || '';
       currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+      sessionStorage.setItem('userEmail', currentUser.email);
+      sessionStorage.setItem('userName',  currentUser.name);
       if (currentUser.isAdmin) blockSetupModal();
       return;
     }
-    const info = await r.json();
-    currentUser.email   = (info.email || '').toLowerCase().trim();
-    currentUser.name    = info.name || '';
-    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
-    sessionStorage.setItem('userEmail', currentUser.email);
-    sessionStorage.setItem('userName',  currentUser.name);
-    if (currentUser.isAdmin) blockSetupModal();
-  } catch(e) {
-    currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
-    currentUser.name    = sessionStorage.getItem('userName') || '';
-    currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
-    if (currentUser.isAdmin) blockSetupModal();
-  }
+  } catch(e) {}
+
+  // Fallback: use cached sessionStorage values
+  currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+  currentUser.name    = sessionStorage.getItem('userName') || '';
+  currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+  if (currentUser.isAdmin) blockSetupModal();
 }
 
 // ═══════════════ SHEETS API (via Cloudflare Worker — append-only) ═══════════════
