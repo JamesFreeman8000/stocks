@@ -1289,7 +1289,7 @@ function objToRow(headers, obj) {
 }
 
 async function loadAllData() {
-  if (isLoading) return; // already loading, skip duplicate calls
+  if (isLoading) return;
   isLoading = true;
   setSyncStatus('Loading...','var(--yellow)');
   try {
@@ -1306,8 +1306,7 @@ async function loadAllData() {
     const parse = (rows, headers) =>
       rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : [];
 
-    // Always use sheet data — never fall back to localStorage
-    // localStorage may be stale if another user made changes
+    // Sheet is always source of truth — overwrite everything in memory
     incomeData   = parse(incRows,   INCOME_HEADERS);
     expenseData  = parse(expRows,   EXPENSE_HEADERS);
     scheduleData = parse(schRows,   SCHEDULE_HEADERS);
@@ -1316,27 +1315,19 @@ async function loadAllData() {
     pendingData  = parse(penRows,   PENDING_HEADERS);
     notifData    = parse(notifRows, NOTIF_HEADERS);
 
-    // Update localStorage cache to match sheet (keeps it fresh for offline use)
+    // Update localStorage to match sheet
     save('pw_income',    incomeData);
     save('pw_expenses',  expenseData);
     save('pw_schedule',  scheduleData);
     save('pw_customers', customerData);
 
-    // Data is loaded — release the lock so syncSheet can run
+    // Release lock AFTER data is set but BEFORE any UI updates or writes
     isLoading = false;
 
-    // Write headers only if sheet tab is completely empty (very first time)
-    const writes = [];
-    if (!incRows.length)    writes.push(syncSheet('income'));
-    if (!expRows.length)    writes.push(syncSheet('expenses'));
-    if (!schRows.length)    writes.push(syncSheet('schedule'));
-    if (!cusRows.length)    writes.push(syncSheet('customers'));
-    if (!empRows.length)    writes.push(syncSheet('employees'));
-    if (!penRows.length)    writes.push(syncSheet('pending'));
-    if (!notifRows.length)  writes.push(syncSheet('notifications'));
-    if (writes.length) await Promise.all(writes);
     setSyncStatus('Synced ✓','var(--accent)');
     dataLoaded = true;
+
+    // These reads-only — no writes triggered here
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
@@ -1352,8 +1343,10 @@ async function loadAllData() {
       if (tab==='pending')   renderPending();
     }
   } catch(e) {
+    isLoading = false;
     setSyncStatus('Sync error — check console','var(--red)');
     console.error('loadAllData error:', e.message, e);
+    // On error use localStorage as fallback but don't write anything
     incomeData   = load('pw_income',[]);
     expenseData  = load('pw_expenses',[]);
     scheduleData = load('pw_schedule',[]);
@@ -1363,8 +1356,6 @@ async function loadAllData() {
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
-  } finally {
-    isLoading = false; // always release the lock
   }
 }
 
@@ -1469,8 +1460,8 @@ async function checkEmployeeStatus() {
     document.getElementById('modal-employee-setup').style.setProperty('display','none','important');
     document.getElementById('modal-employee-setup').classList.remove('open');
     document.getElementById('login-screen').style.display = 'none';
-    // Create profile silently if needed (non-blocking)
-    if (dataLoaded) {
+    // Create profile silently if needed — never write during a load cycle
+    if (dataLoaded && !isLoading) {
       const exists = employeeData.find(e => e.gmail && e.gmail.toLowerCase().trim() === 'jamesfreeman8000@gmail.com');
       if (!exists) {
         const adminEntry = { id: Date.now(), gmail: currentUser.email, name: currentUser.name || 'James Freeman', phone: '', employmentDate: new Date().toISOString().split('T')[0], status: 'approved' };
