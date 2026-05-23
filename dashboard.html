@@ -2436,7 +2436,7 @@ async function saveEvent() {
 
 function editEvent(id) {
   const ev = scheduleData.find(e=>e.id==id); if(!ev) return;
-  editingEventId = id;
+  editingEventId = ev.id; // use the actual stored ID (number), not the string from HTML
   document.getElementById('es-date').value     = ev.date;
   document.getElementById('es-time').value     = ev.time||'';
   document.getElementById('es-title').value    = ev.title||'';
@@ -2447,11 +2447,14 @@ function editEvent(id) {
   document.getElementById('es-address').value  = ev.address||'';
   document.getElementById('es-notes').value    = ev.notes||'';
   setCheckedServices('es-services', ev.services||[]);
+  // Ensure save button is set to admin save (not employee pending submit)
+  const saveBtn = document.querySelector('#modal-edit-schedule .btn-accent');
+  if (saveBtn) { saveBtn.textContent = 'Update Event'; saveBtn.onclick = saveEditEvent; }
   document.getElementById('modal-edit-schedule').classList.add('open');
 }
 
 async function saveEditEvent() {
-  const i = scheduleData.findIndex(e=>e.id===editingEventId); if(i===-1) return;
+  const i = scheduleData.findIndex(e=>e.id==editingEventId); if(i===-1) return;
   scheduleData[i] = {
     ...scheduleData[i],
     date:     document.getElementById('es-date').value,
@@ -2538,7 +2541,7 @@ let markCompleteId = null;
 
 function openMarkComplete(eventId) {
   const ev = scheduleData.find(e => e.id == eventId); if (!ev) return;
-  markCompleteId = eventId;
+  markCompleteId = ev.id; // use actual stored ID not string from HTML
   const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : (ev.services||'—');
   document.getElementById('complete-job-summary').innerHTML =
     '<div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:1px;margin-bottom:8px">'+h(ev.title)+'</div>'+
@@ -2655,22 +2658,21 @@ function renderCalendar() {
     ].filter(Boolean).join('&nbsp;&nbsp;');
     const svcs = Array.isArray(r.services) ? r.services : [];
     const svcPills = svcs.length ? svcs.map(s=>'<span class="pill pill-blue" style="margin:1px;font-size:0.6rem">'+h(s)+'</span>').join(' ') : '<span style="color:var(--muted);font-size:0.68rem">—</span>';
+    const isJob = !r.type || r.type === 'Job' || r.type === 'job';
     const completedBadge = done
       ? '<span class="pill pill-green" style="font-size:0.6rem">✓ Completed</span>'
-      : (r.type === 'Job' ? '<button class="btn btn-accent btn-sm" style="font-size:0.65rem;padding:4px 10px" onclick="openMarkComplete('+r.id+')">✓ Mark Complete</button>' : '');
+      : (isJob ? '<button class="btn btn-accent btn-sm" style="font-size:0.65rem;padding:4px 10px" onclick="openMarkComplete(\''+r.id+'\')">✓ Mark Complete</button>' : '');
     // Build action buttons based on role
     let actionBtns = '';
     if (currentUser.isAdmin) {
-      // Admin: full edit and delete on everything
       actionBtns =
-        '<button class="btn btn-ghost btn-sm" onclick="editEvent('+r.id+')">✎ Edit</button>'+
-        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteEvent('+r.id+'))">✕</button>';
+        '<button class="btn btn-ghost btn-sm" onclick="editEvent(\''+r.id+'\')">✎ Edit</button>'+
+        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteEvent(\''+r.id+'\'))">✕</button>';
     } else {
-      // Employee: edit goes to pending, delete only own jobs and also goes to pending
       const isOwn = (r.employeeEmails||[]).includes(currentUser.email) || r.createdBy === currentUser.email;
-      actionBtns = '<button class="btn btn-ghost btn-sm" onclick="employeeEditEvent('+r.id+')">✎ Edit</button>';
+      actionBtns = '<button class="btn btn-ghost btn-sm" onclick="employeeEditEvent(\''+r.id+'\')">✎ Edit</button>';
       if (isOwn && !done) {
-        actionBtns += '<button class="btn btn-red btn-sm" onclick="employeeDeleteEvent('+r.id+')">✕</button>';
+        actionBtns += '<button class="btn btn-red btn-sm" onclick="employeeDeleteEvent(\''+r.id+'\')">✕</button>';
       }
     }
     return '<tr style="'+(done?'opacity:0.7':'')+'">'+
