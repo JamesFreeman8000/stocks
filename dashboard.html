@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Dashboard</title>
+<title>PW Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💧</text></svg>"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -767,6 +767,22 @@
       <div class="form-group"><label>Email</label><input type="email" id="s-email" placeholder="customer@email.com"/></div>
       <div class="form-group full"><label>Address</label><input type="text" id="s-address" placeholder="123 Main St, City, NJ"/></div>
       <div class="form-group full"><label>Notes</label><textarea id="s-notes" placeholder="Any job details..."></textarea></div>
+      <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <label style="margin-bottom:8px;display:block">🔁 Recurring Job</label>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <select id="s-recurring" onchange="document.getElementById('s-recurring-interval').style.display=this.value==='none'?'none':'flex'" style="width:160px">
+            <option value="none">Not recurring</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="monthly">Monthly</option>
+            <option value="custom">Custom interval</option>
+          </select>
+          <div id="s-recurring-interval" style="display:none;align-items:center;gap:8px">
+            <span style="font-size:0.72rem;color:var(--muted)">Every</span>
+            <input type="number" id="s-recurring-days" placeholder="30" min="1" max="365" style="width:70px"/>
+            <span style="font-size:0.72rem;color:var(--muted)">days</span>
+          </div>
+        </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('schedule')">Cancel</button>
@@ -958,7 +974,7 @@ const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications' };
 const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
 const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
-const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy'];
+const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy','recurring','recurringDays'];
 const CUSTOMER_HEADERS = ['id','name','phone','email','address','tag','notes'];
 const EMPLOYEE_HEADERS = ['id','gmail','name','phone','employmentDate','status'];
 const PENDING_HEADERS  = ['id','type','submittedBy','submittedByName','timestamp','dataType','recordId','originalData','newData','status','adminNote'];
@@ -2387,24 +2403,34 @@ function fmtTime(t) {
 }
 
 async function saveEvent() {
+  const recurringVal = document.getElementById('s-recurring').value;
+  let recurringDays = 0;
+  if (recurringVal === 'weekly')   recurringDays = 7;
+  if (recurringVal === 'biweekly') recurringDays = 14;
+  if (recurringVal === 'monthly')  recurringDays = 30;
+  if (recurringVal === 'custom')   recurringDays = parseInt(document.getElementById('s-recurring-days').value)||30;
   scheduleData.push({
-    id:        Date.now(),
-    date:      document.getElementById('s-date').value,
-    time:      document.getElementById('s-time').value,
-    title:     document.getElementById('s-title').value,
-    customer:  document.getElementById('s-customer').value,
-    type:      document.getElementById('s-type').value,
-    services:  getCheckedServices('s-services'),
-    phone:     document.getElementById('s-phone').value,
-    email:     document.getElementById('s-email').value,
-    address:   document.getElementById('s-address').value,
-    notes:     document.getElementById('s-notes').value,
-    createdBy: currentUser.email,
+    id:           Date.now(),
+    date:         document.getElementById('s-date').value,
+    time:         document.getElementById('s-time').value,
+    title:        document.getElementById('s-title').value,
+    customer:     document.getElementById('s-customer').value,
+    type:         document.getElementById('s-type').value,
+    services:     getCheckedServices('s-services'),
+    phone:        document.getElementById('s-phone').value,
+    email:        document.getElementById('s-email').value,
+    address:      document.getElementById('s-address').value,
+    notes:        document.getElementById('s-notes').value,
+    createdBy:    currentUser.email,
+    recurring:    recurringVal !== 'none' ? recurringVal : '',
+    recurringDays: recurringDays,
   });
   await syncSheet('schedule');
   closeModal('schedule');
   ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id=>document.getElementById(id).value='');
   clearCheckedServices('s-services');
+  document.getElementById('s-recurring').value = 'none';
+  document.getElementById('s-recurring-interval').style.display = 'none';
   renderCalendar();
 }
 
@@ -2554,13 +2580,46 @@ async function saveMarkComplete() {
   ev.completed = 'true';
   ev.incomeId  = String(incomeEntry.id);
   incomeData.unshift(incomeEntry);
+
+  // ── Auto-create next occurrence for recurring jobs ──
+  if (ev.recurring && ev.recurringDays > 0) {
+    const days = parseInt(ev.recurringDays) || 30;
+    const currentDate = new Date(ev.date + 'T12:00:00');
+    currentDate.setDate(currentDate.getDate() + days);
+    const nextDate = currentDate.toISOString().split('T')[0];
+    const nextEvent = {
+      id:           Date.now() + 1,
+      date:         nextDate,
+      time:         ev.time || '',
+      title:        ev.title,
+      customer:     ev.customer,
+      type:         ev.type,
+      services:     ev.services,
+      phone:        ev.phone || '',
+      email:        ev.email || '',
+      address:      ev.address || '',
+      notes:        ev.notes || '',
+      createdBy:    ev.createdBy || currentUser.email,
+      recurring:    ev.recurring,
+      recurringDays: ev.recurringDays,
+      completed:    false,
+      incomeId:     '',
+    };
+    scheduleData.push(nextEvent);
+    setSyncStatus('Next '+ev.recurring+' job added for '+nextDate,'var(--accent)');
+  }
+
   await Promise.all([syncSheet('income'), syncSheet('schedule')]);
   closeModal('mark-complete');
   markCompleteId = null;
   renderCalendar();
   renderHomeStats();
-  setSyncStatus('Job logged ✓','var(--accent)');
-  setTimeout(()=>setSyncStatus('Synced','var(--accent)'),3000);
+  if (!ev.recurring) {
+    setSyncStatus('Job logged ✓','var(--accent)');
+    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),3000);
+  } else {
+    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),4000);
+  }
 }
 
 function renderCalendar() {
@@ -2577,7 +2636,7 @@ function renderCalendar() {
       const done = e.completed === 'true' || e.completed === true;
       const color = done ? '#34d399' : 'var(--accent)';
       const bg = done ? '#34d39925' : 'var(--accent)25';
-      return '<div class="cal-event" style="background:'+bg+';border-color:'+color+';color:'+color+'">'+(done?'✓ ':'')+h(e.title)+'</div>';
+      return '<div class="cal-event" style="background:'+bg+';border-color:'+color+';color:'+color+'">'+(done?'✓ ':'')+h(e.title)+(e.recurring?' 🔁':'')+'</div>';
     }).join('');
     cells+='<div class="cal-cell'+(isToday?' today':'')+'"><div class="cal-date">'+d+'</div>'+evHtml+'</div>';
   }
@@ -2619,7 +2678,7 @@ function renderCalendar() {
       '<td style="white-space:nowrap">'+h(fmtTime(r.time)||'—')+'</td>'+
       '<td>'+h(r.title)+'</td>'+
       '<td>'+h(r.customer||'—')+'</td>'+
-      '<td><span class="pill '+(typePill[r.type]||'pill-blue')+'">'+h(r.type)+'</span></td>'+
+      '<td><span class="pill '+(typePill[r.type]||'pill-blue')+'">'+h(r.type)+'</span>'+(r.recurring?'<span class="pill pill-purple" style="margin-left:4px;font-size:0.58rem">🔁 '+h(r.recurring)+'</span>':'')+'</td>'+
       '<td style="max-width:180px">'+svcPills+'</td>'+
       '<td style="font-size:0.68rem;color:var(--muted)">'+(contact||'—')+'</td>'+
       '<td style="color:var(--muted);font-size:0.68rem;max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+h(r.notes||'—')+'</td>'+
