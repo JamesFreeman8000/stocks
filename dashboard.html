@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>PW Dashboard</title>
+<title>Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💧</text></svg>"/>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -1105,10 +1105,8 @@ function scheduleTokenRefresh(msFromNow) {
 }
 
 function silentTokenRefresh() {
-  if (!tokenClient) return;
-  // Only attempt silent refresh — if browser blocks the popup that's fine,
-  // the user will just need to sign in again next session
-  try { tokenClient.requestAccessToken({ prompt: '' }); } catch(e) {}
+  // Disabled — silent refresh causes blocked popup errors in most browsers
+  // Token lasts 50 min, user will re-authenticate when it expires
 }
 
 // On page load, check if existing cached token is still fresh enough
@@ -1116,10 +1114,11 @@ function checkCachedTokenExpiry() {
   const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
   if (!expiry) return;
   const remaining = expiry - Date.now();
+  // Schedule a refresh before expiry — but only if we're within the session
+  // The refresh uses prompt:'consent' to avoid blocked popup issues
   if (remaining > 60000) {
     scheduleTokenRefresh(remaining);
   }
-  // Don't try silent refresh on page load — it causes blocked popup errors
 }
 
 function signIn() {
@@ -1141,20 +1140,17 @@ function signOut() {
 // When user comes back to the tab after being away, check if token needs refreshing
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW) {
-    const expiry = parseInt(sessionStorage.getItem('gtokenExpiry') || '0');
-    if (expiry - Date.now() < 5 * 60 * 1000) silentTokenRefresh();
     setSyncStatus('Syncing...', 'var(--yellow)');
     await loadAllData();
   }
 });
 
-// Poll every 30 seconds to pick up changes made directly in the sheet
-// or by other users on other devices
+// Poll every 2 minutes to pick up changes — 30s was hitting Google API rate limits
 setInterval(async () => {
   if (document.visibilityState === 'visible' && accessToken && !IS_PREVIEW && !isLoading) {
     await loadAllData();
   }
-}, 30000);
+}, 120000);
 
 function showLoginBtn(error) {
   document.getElementById('login-status').textContent = 'Sign in to sync your data across all devices';
