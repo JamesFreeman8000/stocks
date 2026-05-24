@@ -1357,18 +1357,22 @@ async function loadAllData() {
     }
   } catch(e) {
     isLoading = false;
-    setSyncStatus('Sync error — check console','var(--red)');
-    console.error('loadAllData error:', e.message, e);
-    // On error use localStorage as fallback but don't write anything
-    incomeData   = load('pw_income',[]);
-    expenseData  = load('pw_expenses',[]);
-    scheduleData = load('pw_schedule',[]);
-    customerData = load('pw_customers',[]);
-    employeeData = []; pendingData = []; notifData = [];
-    dataLoaded = false;
+    setSyncStatus('Sync error','var(--red)');
+    console.error('loadAllData error:', e.message);
+    // Don't overwrite in-memory data with potentially stale localStorage
+    // Keep whatever we already have in memory (which may be correct from last successful load)
+    dataLoaded = true; // allow saves to proceed
     await checkEmployeeStatus();
     updateNotificationBadge();
     renderHomeStats();
+    // Re-render current tab with whatever data we have
+    const active = document.querySelector('.tab-content.active');
+    if (active) {
+      const tab = active.id.replace('tab-','');
+      if (tab==='schedule') renderCalendar();
+      if (tab==='income')   renderIncome();
+      if (tab==='customers') renderCustomers();
+    }
   }
 }
 
@@ -2037,6 +2041,7 @@ async function saveJobEmployees() {
 const _origSaveIncome = saveIncome;
 
 function openNewEventFromTopbar() {
+  console.log('openNewEventFromTopbar called');
   // Clear the form
   ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id => {
     const el = document.getElementById(id);
@@ -2044,10 +2049,9 @@ function openNewEventFromTopbar() {
   });
   clearCheckedServices('s-services');
   document.getElementById('s-type').value = 'Job';
-  // Set today's date
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
-  // Open the modal
   document.getElementById('modal-schedule').classList.add('open');
+  console.log('modal-schedule open class added:', document.getElementById('modal-schedule').classList.contains('open'));
 }
 
 
@@ -2114,7 +2118,10 @@ document.addEventListener('DOMContentLoaded', () => {
   }).observe(setupModal, { attributes: true, attributeFilter: ['class'] });
 });
 document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
+  o.addEventListener('click', e => {
+    // Only close if clicking the dark overlay itself, not anything inside the modal
+    if (e.target === o) o.classList.remove('open');
+  });
 });
 
 // ═══════════════ SERVICE CHIPS ═══════════════
@@ -2536,8 +2543,11 @@ function changeMonth(dir) { calMonth+=dir; if(calMonth>11){calMonth=0;calYear++;
 let markCompleteId = null;
 
 function openMarkComplete(eventId) {
-  const ev = scheduleData.find(e => e.id == eventId); if (!ev) return;
-  markCompleteId = ev.id; // use actual stored ID not string from HTML
+  console.log('openMarkComplete called with id:', eventId);
+  const ev = scheduleData.find(e => e.id == eventId);
+  console.log('Found event:', ev ? ev.title : 'NOT FOUND', '| scheduleData length:', scheduleData.length);
+  if (!ev) return;
+  markCompleteId = ev.id;
   const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : (ev.services||'—');
   document.getElementById('complete-job-summary').innerHTML =
     '<div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:1px;margin-bottom:8px">'+h(ev.title)+'</div>'+
