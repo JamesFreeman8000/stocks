@@ -287,7 +287,7 @@
 <body>
 
 <!-- LOGIN SCREEN -->
-<div id="login-screen" style="position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px">
+<div id="login-screen" style="position:fixed;inset:0;background:var(--bg);z-index:999;display:none;align-items:center;justify-content:center;flex-direction:column;gap:24px">
   <div style="text-align:center">
     <div style="font-size:0.65rem;color:var(--accent);letter-spacing:3px;text-transform:uppercase;margin-bottom:8px">💧 Pressure Washing</div>
     <div style="font-family:var(--font-display);font-size:3.5rem;color:#e8edf8;letter-spacing:3px;line-height:1">DASHBOARD</div>
@@ -1153,6 +1153,8 @@ setInterval(async () => {
 }, 120000);
 
 function showLoginBtn(error) {
+  const ls = document.getElementById('login-screen');
+  ls.style.display = 'flex'; // make visible when showing sign-in
   document.getElementById('login-status').textContent = 'Sign in to sync your data across all devices';
   document.getElementById('sign-in-btn').style.display = 'block';
   if (error) {
@@ -1162,10 +1164,10 @@ function showLoginBtn(error) {
 }
 
 function hideLoginScreen() {
-  document.getElementById('login-screen').style.display = 'none';
+  const ls = document.getElementById('login-screen');
+  ls.style.display = 'none'; // completely remove from layout so it can't block clicks
   const sd = document.getElementById('sidebar-date');
   if (sd) sd.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
-  // Immediately close setup modal if admin — before data even loads
   if (currentUser.isAdmin) {
     const m = document.getElementById('modal-employee-setup');
     if (m) m.classList.remove('open');
