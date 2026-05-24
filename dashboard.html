@@ -529,8 +529,18 @@
   <div class="tab-content" id="tab-customers">
     <div class="section-head">
       <div class="section-head-title">CUSTOMER DIRECTORY</div>
-      <div style="display:flex;gap:10px;align-items:center">
-        <input type="text" id="customer-search" placeholder="🔍  Search customers..." oninput="renderCustomers()" style="width:220px;padding:8px 12px;font-size:0.73rem"/>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="customer-search" placeholder="🔍  Search customers..." oninput="renderCustomers()" style="width:200px;padding:8px 12px;font-size:0.73rem"/>
+        <select id="customer-sort" onchange="renderCustomers()" style="padding:8px 12px;font-size:0.73rem;background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:7px;font-family:var(--font-mono)">
+          <option value="default">Default</option>
+          <option value="az">A → Z</option>
+          <option value="top-revenue">Top Revenue</option>
+          <option value="least-revenue">Least Revenue</option>
+          <option value="top-jobs">Top Jobs</option>
+          <option value="least-jobs">Least Jobs</option>
+          <option value="most-recent">Most Recent</option>
+          <option value="longest-since">Longest Since Visit</option>
+        </select>
         <button class="btn btn-accent" onclick="openModal('customer')">+ Add Customer</button>
       </div>
     </div>
@@ -626,6 +636,13 @@
         <div class="donut-wrap">
           <canvas id="donut-canvas" width="140" height="140"></canvas>
           <div class="donut-legend" id="donut-legend"></div>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">REVENUE BY SERVICE TYPE</div>
+        <div class="donut-wrap">
+          <canvas id="service-donut-canvas" width="140" height="140"></canvas>
+          <div class="donut-legend" id="service-donut-legend"></div>
         </div>
       </div>
     </div>
@@ -2749,6 +2766,7 @@ function deleteCustomer(id) {
 function renderCustomers() {
   const tagPill={Regular:'pill-green',VIP:'pill-yellow',New:'pill-blue','One-time':'pill-purple'};
   const q=(document.getElementById('customer-search')?.value||'').toLowerCase();
+  const sort=(document.getElementById('customer-sort')?.value)||'default';
   const filtered=q?customerData.filter(c=>(c.name||'').toLowerCase().includes(q)||(c.phone||'').toLowerCase().includes(q)||(c.email||'').toLowerCase().includes(q)||(c.address||'').toLowerCase().includes(q)||(c.notes||'').toLowerCase().includes(q)):customerData;
   const withStats=filtered.map(c=>{
     const jobs=getJobsForCustomer(c);
@@ -2758,7 +2776,27 @@ function renderCustomers() {
     const isRecurring=jobCount>=2;
     const daysSinceLast=lastJob?Math.floor((new Date()-new Date(lastJob))/86400000):null;
     return {...c,jobs,totalSpent,jobCount,lastJob,isRecurring,daysSinceLast};
-  }).sort((a,b)=>b.jobCount-a.jobCount);
+  });
+
+  // Apply sort
+  if      (sort==='az')           withStats.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
+  else if (sort==='top-revenue')  withStats.sort((a,b)=>b.totalSpent-a.totalSpent);
+  else if (sort==='least-revenue')withStats.sort((a,b)=>a.totalSpent-b.totalSpent);
+  else if (sort==='top-jobs')     withStats.sort((a,b)=>b.jobCount-a.jobCount);
+  else if (sort==='least-jobs')   withStats.sort((a,b)=>a.jobCount-b.jobCount);
+  else if (sort==='most-recent')  withStats.sort((a,b)=>{
+    if (!a.lastJob && !b.lastJob) return 0;
+    if (!a.lastJob) return 1;
+    if (!b.lastJob) return -1;
+    return b.lastJob.localeCompare(a.lastJob);
+  });
+  else if (sort==='longest-since') withStats.sort((a,b)=>{
+    if (!a.lastJob && !b.lastJob) return 0;
+    if (!a.lastJob) return -1; // never visited = longest since, show first
+    if (!b.lastJob) return 1;
+    return a.lastJob.localeCompare(b.lastJob); // oldest date first
+  });
+  // default: preserve original creation order
 
   if(!withStats.length){
     document.getElementById('customer-grid').innerHTML='<div style="color:var(--muted);font-size:0.75rem;padding:24px">'+(q?'No customers match your search':'No customers yet')+'</div>';
@@ -2956,6 +2994,35 @@ function renderReports(){
         '<div class="bar" style="height:'+(inc6[i]/max6*90)+'px;background:var(--accent);width:16px;min-height:'+(inc6[i]?2:0)+'px" title="Income: '+fmt(inc6[i])+'"></div>'+
         '<div class="bar" style="height:'+(exp6[i]/max6*90)+'px;background:var(--red);width:16px;min-height:'+(exp6[i]?2:0)+'px" title="Expenses: '+fmt(exp6[i])+'"></div>'+
       '</div><div class="bar-label">'+m.label+'</div></div>').join('');
+  // ── Service revenue donut ──
+  const svcRevenue = {};
+  incomeData.forEach(r => {
+    const svcs = Array.isArray(r.services) ? r.services : (r.service ? [r.service] : []);
+    if (!svcs.length) { svcRevenue['Other'] = (svcRevenue['Other']||0) + r.amount; return; }
+    const split = r.amount / svcs.length;
+    svcs.forEach(s => { svcRevenue[s] = (svcRevenue[s]||0) + split; });
+  });
+  const svcEntries = Object.entries(svcRevenue).sort((a,b)=>b[1]-a[1]);
+  const svcColors = ['#00d4aa','#818cf8','#fbbf24','#f472b6','#60a5fa','#34d399','#ff4d6d','#fb923c','#a78bfa'];
+  const svcCanvas = document.getElementById('service-donut-canvas');
+  if (svcCanvas) {
+    const sctx = svcCanvas.getContext('2d');
+    sctx.clearRect(0,0,140,140);
+    const svcTot = svcEntries.reduce((s,[,v])=>s+v,0)||1;
+    let svcStart = -Math.PI/2;
+    svcEntries.forEach(([,v],i)=>{
+      const sl=(v/svcTot)*Math.PI*2;
+      sctx.beginPath();sctx.moveTo(70,70);sctx.arc(70,70,60,svcStart,svcStart+sl);
+      sctx.closePath();sctx.fillStyle=svcColors[i%svcColors.length];sctx.fill();
+      svcStart+=sl;
+    });
+    sctx.beginPath();sctx.arc(70,70,34,0,Math.PI*2);sctx.fillStyle='#12172a';sctx.fill();
+    document.getElementById('service-donut-legend').innerHTML = svcEntries.length ?
+      svcEntries.map(([k,v],i)=>
+        '<div class="legend-item"><div class="legend-dot" style="background:'+svcColors[i%svcColors.length]+'"></div>'+
+        '<span>'+h(k)+': <strong>'+fmt(v)+'</strong></span></div>'
+      ).join('') : '<div style="color:var(--muted);font-size:0.7rem">No jobs yet</div>';
+  }
   renderReportYearView();
 }
 
