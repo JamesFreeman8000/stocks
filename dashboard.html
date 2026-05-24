@@ -2117,11 +2117,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }).observe(setupModal, { attributes: true, attributeFilter: ['class'] });
 });
-document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('mousedown', e => {
-    if (e.target === o) o.classList.remove('open');
-  });
-});
+// Modals close via their Cancel buttons only — overlay click listener removed
+// because it was conflicting with opening modals from table row buttons
 
 // ═══════════════ SERVICE CHIPS ═══════════════
 const ALL_SERVICES = ['Driveway','House Wash','Deck/Patio','Roof Soft Wash','Fence','Commercial','Sidewalk','Gutters','Other'];
@@ -2240,7 +2237,7 @@ function saveIncome() {
 }
 
 function deleteIncome(id) {
-  incomeData = incomeData.filter(r => r.id!==id);
+  incomeData = incomeData.filter(r => r.id!=id);
   syncSheet('income');
   renderIncome(); renderHomeStats();
 }
@@ -2356,7 +2353,7 @@ function saveExpense() {
 }
 
 function deleteExpense(id) {
-  expenseData = expenseData.filter(r=>r.id!==id);
+  expenseData = expenseData.filter(r=>r.id!=id);
   syncSheet('expenses');
   renderExpenses(); renderHomeStats();
 }
@@ -2438,7 +2435,9 @@ async function saveEvent() {
 
 function editEvent(id) {
   const ev = scheduleData.find(e=>e.id==id); if(!ev) return;
-  editingEventId = ev.id; // use the actual stored ID (number), not the string from HTML
+  // Close any other open modals first
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+  editingEventId = ev.id;
   document.getElementById('es-date').value     = ev.date;
   document.getElementById('es-time').value     = ev.time||'';
   document.getElementById('es-title').value    = ev.title||'';
@@ -2477,7 +2476,7 @@ async function saveEditEvent() {
 }
 
 async function deleteEvent(id) {
-  scheduleData = scheduleData.filter(r => r.id !== id);
+  scheduleData = scheduleData.filter(r => r.id != id);
   console.log('deleteEvent: removed id', id, '— remaining:', scheduleData.length);
   await syncSheet('schedule');
   console.log('deleteEvent: syncSheet complete, sync status:', document.getElementById('sync-text').textContent);
@@ -2546,6 +2545,8 @@ function openMarkComplete(eventId) {
   const ev = scheduleData.find(e => e.id == eventId);
   console.log('Found event:', ev ? ev.title : 'NOT FOUND', '| scheduleData length:', scheduleData.length);
   if (!ev) return;
+  // Close any other open modals first
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
   markCompleteId = ev.id;
   const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : (ev.services||'—');
   document.getElementById('complete-job-summary').innerHTML =
@@ -2730,7 +2731,7 @@ function saveCustomer() {
 }
 
 function deleteCustomer(id) {
-  customerData=customerData.filter(r=>r.id!==id);
+  customerData=customerData.filter(r=>r.id!=id);
   syncSheet('customers');
   renderCustomers();
 }
