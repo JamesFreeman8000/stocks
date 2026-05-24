@@ -104,7 +104,7 @@
   /* ── MODALS ── */
   .modal-overlay { display:none; position:fixed; inset:0; background:#00000080; z-index:200; align-items:center; justify-content:center; padding:16px; }
   .modal-overlay.open { display:flex; }
-  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto; position:relative; }
   .modal-title { font-family:var(--font-display); font-size:1.4rem; color:#e8edf8; letter-spacing:2px; margin-bottom:20px; }
   .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
   .form-group { display:flex; flex-direction:column; gap:6px; }
@@ -680,7 +680,7 @@
 <!-- ═══════════════ MODALS ═══════════════ -->
 <!-- Income Modal -->
 <div class="modal-overlay" id="modal-income">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="income-modal-title">ADD JOB</div>
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input type="date" id="i-date"/></div>
@@ -716,7 +716,7 @@
 
 <!-- Expense Modal -->
 <div class="modal-overlay" id="modal-expense">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="expense-modal-title">ADD EXPENSE</div>
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input type="date" id="e-date"/></div>
@@ -740,7 +740,7 @@
 
 <!-- Schedule Modal -->
 <div class="modal-overlay" id="modal-schedule">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">ADD EVENT</div>
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input type="date" id="s-date"/></div>
@@ -793,7 +793,7 @@
 
 <!-- Customer Modal -->
 <div class="modal-overlay" id="modal-customer">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="customer-modal-title">ADD CUSTOMER</div>
     <div class="form-grid">
       <div class="form-group"><label>Full Name</label><input type="text" id="c-name" placeholder="John Smith"/></div>
@@ -814,7 +814,7 @@
 
 <!-- Employee First-Time Setup Modal -->
 <div class="modal-overlay" id="modal-employee-setup" style="z-index:250">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">COMPLETE YOUR PROFILE</div>
     <p style="font-size:0.72rem;color:var(--muted);margin-bottom:18px;line-height:1.6">Welcome! Your account is pending admin approval. Please fill in your details below.</p>
     <div class="form-grid">
@@ -841,7 +841,7 @@
 
 <!-- Pending: Edit Application (Admin edits an applicant's info) -->
 <div class="modal-overlay" id="modal-edit-application">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">EDIT APPLICATION</div>
     <div class="form-grid">
       <div class="form-group full"><label>Full Name</label><input type="text" id="ea-name" placeholder="Full name"/></div>
@@ -871,7 +871,7 @@
 
 <!-- Employee assign modal (for adding employees to a job) -->
 <div class="modal-overlay" id="modal-assign-employees">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">ASSIGN EMPLOYEES</div>
     <p style="font-size:0.72rem;color:var(--muted);margin-bottom:16px">Select all employees who worked this job. Revenue will be split equally.</p>
     <div id="assign-employee-list" style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto"></div>
@@ -884,7 +884,7 @@
 
 <!-- Employee profile edit modal (admin editing an employee's info) -->
 <div class="modal-overlay" id="modal-edit-employee">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">EDIT EMPLOYEE</div>
     <div class="form-grid">
       <div class="form-group full"><label>Full Name</label><input type="text" id="ee-name" placeholder="Full name"/></div>
@@ -901,7 +901,7 @@
 
 <!-- Mark Complete Modal -->
 <div class="modal-overlay" id="modal-mark-complete">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">✓ MARK JOB COMPLETE</div>
     <div id="complete-job-summary" style="background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:0.73rem;line-height:1.8;color:var(--muted)"></div>
     <div class="form-grid">
@@ -929,7 +929,7 @@
   </div>
 </div>
 <div class="modal-overlay" id="modal-edit-schedule">
-  <div class="modal">
+  <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">EDIT EVENT</div>
     <div class="form-grid">
       <div class="form-group"><label>Date</label><input type="date" id="es-date"/></div>
@@ -2118,8 +2118,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }).observe(setupModal, { attributes: true, attributeFilter: ['class'] });
 });
 document.querySelectorAll('.modal-overlay').forEach(o => {
-  o.addEventListener('click', e => {
-    // Only close if clicking the dark overlay itself, not anything inside the modal
+  o.addEventListener('mousedown', e => {
     if (e.target === o) o.classList.remove('open');
   });
 });
