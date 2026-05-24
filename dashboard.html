@@ -1031,7 +1031,13 @@ window.onload = function() {
     }
   }, 100);
 
-  setTimeout(() => { showLoginBtn('Could not load Google Sign-In. Check your internet connection.'); }, 8000);
+  setTimeout(() => {
+    // Only show error if we're still on the login screen (not already signed in)
+    const ls = document.getElementById('login-screen');
+    if (ls && ls.style.display !== 'none') {
+      showLoginBtn('Could not load Google Sign-In. Check your internet connection.');
+    }
+  }, 8000);
 };
 
 function loadPreviewData() {
