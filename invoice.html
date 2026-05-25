@@ -4,275 +4,461 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Invoice — Hydro Pressure Washing</title>
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&display=swap" rel="stylesheet"/>
 <style>
-  :root { --bg:#0b0e18;--surface:#12172a;--surface2:#1a1f33;--border:#1e2640;--accent:#00d4aa;--red:#ff4d6d;--yellow:#fbbf24;--text:#c9d3e8;--muted:#4a5470;--font-display:'Bebas Neue',sans-serif;--font-mono:'DM Mono',monospace; }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:var(--font-mono);min-height:100vh;padding:24px 16px}
-  .container{max-width:680px;margin:0 auto}
-  .card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:20px}
-  .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;flex-wrap:wrap;gap:16px}
-  .biz-name{font-family:var(--font-display);font-size:2rem;color:#e8edf8;letter-spacing:3px}
-  .biz-info{font-size:0.68rem;color:var(--muted);line-height:2;margin-top:4px}
-  .inv-number{text-align:right}
-  .inv-number-label{font-size:0.6rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase}
-  .inv-number-val{font-family:var(--font-display);font-size:2rem;color:var(--accent);letter-spacing:2px}
-  .inv-number-date{font-size:0.68rem;color:var(--muted)}
-  .divider{border:none;border-top:1px solid var(--border);margin:20px 0}
-  .section-label{font-size:0.58rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px}
-  .customer-name{font-size:1.1rem;color:#e8edf8;font-weight:500;margin-bottom:4px}
-  .customer-info{font-size:0.72rem;color:var(--muted);line-height:1.8}
-  table{width:100%;border-collapse:collapse;margin:16px 0}
-  thead th{font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:2px;padding:10px 12px;text-align:left;background:var(--surface2);border-bottom:1px solid var(--border)}
-  tbody td{padding:12px;font-size:0.78rem;border-bottom:1px solid var(--border)}
-  tbody tr:last-child td{border-bottom:none}
-  .total-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-top:1px solid var(--border)}
-  .total-label{font-size:0.72rem;color:var(--muted)}
-  .total-val{font-family:var(--font-display);font-size:1.5rem;color:var(--accent);letter-spacing:1px}
-  .payment-section{margin-top:20px}
-  .payment-grid{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-  .payment-pill{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 16px;font-size:0.72rem;text-align:center}
-  .notes-box{background:var(--surface2);border-radius:10px;padding:16px;font-size:0.72rem;color:var(--muted);line-height:1.8;margin-top:12px}
-  .sig-section{margin-top:20px}
-  .sig-canvas{width:100%;height:180px;background:var(--surface2);border:2px dashed var(--border);border-radius:10px;cursor:crosshair;touch-action:none}
-  .sig-canvas.signed{border-color:var(--accent);border-style:solid}
-  .sig-name-input{width:100%;margin-top:10px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font-mono);font-size:0.8rem;outline:none}
-  .sig-name-input:focus{border-color:var(--accent)}
-  .btn{border:none;border-radius:8px;padding:12px 24px;font-family:var(--font-mono);font-size:0.8rem;cursor:pointer;font-weight:500;letter-spacing:0.5px;transition:opacity 0.15s;width:100%;margin-top:10px}
-  .btn-accent{background:var(--accent);color:#061210}
-  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--muted)}
-  .btn:hover{opacity:0.85}
-  .status-badge{display:inline-block;padding:6px 16px;border-radius:20px;font-size:0.7rem;font-weight:600;letter-spacing:1px;text-transform:uppercase}
-  .status-sent{background:var(--accent)20;color:var(--accent);border:1px solid var(--accent)40}
-  .status-signed{background:#34d39920;color:#34d399;border:1px solid #34d39940}
-  .status-paid{background:var(--yellow)20;color:var(--yellow);border:1px solid var(--yellow)40}
-  .success-screen{text-align:center;padding:40px 20px}
-  .success-icon{font-size:4rem;margin-bottom:16px}
-  .success-title{font-family:var(--font-display);font-size:2rem;color:#34d399;letter-spacing:2px;margin-bottom:8px}
-  .success-msg{font-size:0.78rem;color:var(--muted);line-height:1.8}
-  .loading{text-align:center;padding:60px;color:var(--muted)}
-  .error-screen{text-align:center;padding:60px;color:var(--red)}
-  @media(max-width:480px){.card{padding:20px 16px}.biz-name{font-size:1.5rem}.header{flex-direction:column}.inv-number{text-align:left}}
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:#f0f2f5; font-family:'Inter',sans-serif; color:#1a1a2e; min-height:100vh; padding:32px 16px; }
+
+  .page-wrap { max-width:720px; margin:0 auto; }
+
+  /* ── INVOICE CARD ── */
+  .invoice-card {
+    background:#fff;
+    border-radius:4px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.12);
+    overflow:hidden;
+    margin-bottom:24px;
+  }
+
+  /* Header band */
+  .inv-header {
+    background:#0d1b2a;
+    padding:36px 48px;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    gap:20px;
+  }
+  .biz-logo { font-family:'Bebas Neue',sans-serif; font-size:1.8rem; color:#00d4aa; letter-spacing:3px; margin-bottom:4px; }
+  .biz-tag  { font-size:0.65rem; color:#8899aa; letter-spacing:2px; text-transform:uppercase; }
+  .biz-contact { font-size:0.72rem; color:#8899aa; line-height:2; margin-top:10px; }
+  .biz-contact span { color:#c9d3e8; }
+
+  .inv-meta { text-align:right; }
+  .inv-label { font-size:0.6rem; color:#8899aa; letter-spacing:2px; text-transform:uppercase; margin-bottom:2px; }
+  .inv-num   { font-family:'Bebas Neue',sans-serif; font-size:2.2rem; color:#00d4aa; letter-spacing:2px; line-height:1; }
+  .inv-dates { font-size:0.7rem; color:#8899aa; margin-top:8px; line-height:2; }
+  .inv-dates span { color:#c9d3e8; }
+
+  /* Status badge */
+  .status-band {
+    padding:10px 48px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-size:0.72rem;
+    font-weight:600;
+    letter-spacing:1px;
+    text-transform:uppercase;
+  }
+  .status-band.sent   { background:#fff8e6; color:#b45309; border-bottom:2px solid #fbbf24; }
+  .status-band.signed { background:#f0fdf4; color:#166534; border-bottom:2px solid #22c55e; }
+  .status-band.paid   { background:#f0fdf4; color:#166534; border-bottom:2px solid #22c55e; }
+  .status-band.draft  { background:#f8f8f8; color:#888;    border-bottom:2px solid #ddd; }
+  .status-dot { width:8px; height:8px; border-radius:50%; background:currentColor; }
+
+  /* Body */
+  .inv-body { padding:40px 48px; }
+
+  /* Bill to / From grid */
+  .parties { display:grid; grid-template-columns:1fr 1fr; gap:32px; margin-bottom:36px; }
+  .party-label { font-size:0.6rem; color:#888; letter-spacing:2px; text-transform:uppercase; margin-bottom:8px; padding-bottom:6px; border-bottom:2px solid #00d4aa; }
+  .party-name  { font-size:1rem; font-weight:700; color:#0d1b2a; margin-bottom:4px; }
+  .party-info  { font-size:0.78rem; color:#555; line-height:1.9; }
+
+  /* Line items table */
+  .items-table { width:100%; border-collapse:collapse; margin-bottom:28px; }
+  .items-table thead th {
+    background:#0d1b2a; color:#8899aa;
+    font-size:0.6rem; letter-spacing:2px; text-transform:uppercase;
+    padding:10px 14px; text-align:left; font-weight:500;
+  }
+  .items-table thead th:last-child { text-align:right; }
+  .items-table tbody td { padding:14px; font-size:0.85rem; border-bottom:1px solid #f0f0f0; color:#1a1a2e; }
+  .items-table tbody tr:last-child td { border-bottom:none; }
+  .items-table tbody td:last-child { text-align:right; font-weight:600; color:#0d1b2a; }
+  .items-table tbody tr:hover td { background:#f9f9f9; }
+
+  /* Totals */
+  .totals { display:flex; justify-content:flex-end; margin-bottom:32px; }
+  .totals-box { width:260px; }
+  .totals-row { display:flex; justify-content:space-between; padding:6px 0; font-size:0.82rem; color:#555; }
+  .totals-row.total {
+    border-top:2px solid #0d1b2a; margin-top:8px; padding-top:12px;
+    font-size:1.05rem; font-weight:700; color:#0d1b2a;
+  }
+  .totals-row.total .t-val { color:#00d4aa; font-size:1.2rem; }
+
+  /* Payment methods */
+  .payment-section { margin-bottom:32px; }
+  .section-title { font-size:0.6rem; color:#888; letter-spacing:2px; text-transform:uppercase; margin-bottom:12px; }
+  .pay-pills { display:flex; flex-wrap:wrap; gap:8px; }
+  .pay-pill {
+    border:1.5px solid #e0e0e0; border-radius:8px;
+    padding:8px 16px; font-size:0.78rem; color:#333;
+    background:#fafafa; font-weight:500;
+  }
+
+  /* Notes */
+  .notes-box {
+    background:#f8f9fa; border-left:3px solid #00d4aa;
+    border-radius:0 8px 8px 0; padding:14px 18px;
+    font-size:0.78rem; color:#555; line-height:1.8;
+    margin-bottom:32px;
+  }
+
+  /* Footer strip */
+  .inv-footer {
+    background:#f8f9fa; border-top:1px solid #eee;
+    padding:18px 48px; text-align:center;
+    font-size:0.7rem; color:#aaa;
+  }
+
+  /* ── SIGNATURE CARD ── */
+  .sig-card {
+    background:#fff;
+    border-radius:4px;
+    box-shadow:0 4px 24px rgba(0,0,0,0.12);
+    padding:36px 48px;
+    margin-bottom:24px;
+  }
+  .sig-title { font-size:1.1rem; font-weight:700; color:#0d1b2a; margin-bottom:4px; }
+  .sig-sub   { font-size:0.78rem; color:#888; margin-bottom:20px; line-height:1.6; }
+  .sig-canvas-wrap { border:2px dashed #ddd; border-radius:8px; background:#fafafa; position:relative; margin-bottom:12px; }
+  .sig-canvas-wrap.signed { border-color:#00d4aa; border-style:solid; }
+  canvas { display:block; width:100%; height:160px; cursor:crosshair; touch-action:none; border-radius:6px; }
+  .sig-hint { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); font-size:0.75rem; color:#bbb; pointer-events:none; text-align:center; }
+  .clear-btn { font-size:0.68rem; color:#888; background:none; border:1px solid #ddd; border-radius:6px; padding:4px 12px; cursor:pointer; float:right; margin-bottom:8px; }
+  .sig-inputs { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px; }
+  .sig-input {
+    width:100%; padding:11px 14px; border:1.5px solid #e0e0e0; border-radius:8px;
+    font-family:'Inter',sans-serif; font-size:0.82rem; color:#1a1a2e; outline:none;
+    transition:border-color 0.15s;
+  }
+  .sig-input:focus { border-color:#00d4aa; }
+  .submit-btn {
+    width:100%; margin-top:16px; padding:14px;
+    background:#0d1b2a; color:#00d4aa;
+    border:none; border-radius:8px; font-family:'Inter',sans-serif;
+    font-size:0.88rem; font-weight:600; letter-spacing:1px;
+    cursor:pointer; transition:background 0.15s;
+  }
+  .submit-btn:hover { background:#1a2f45; }
+  .submit-btn:disabled { opacity:0.5; cursor:not-allowed; }
+
+  .signed-badge {
+    background:#f0fdf4; border:1.5px solid #22c55e; border-radius:10px;
+    padding:16px 20px; font-size:0.82rem; color:#166534; line-height:1.8;
+  }
+
+  .success-card {
+    background:#fff; border-radius:4px; box-shadow:0 4px 24px rgba(0,0,0,0.12);
+    padding:60px 48px; text-align:center;
+  }
+  .success-icon  { font-size:4rem; margin-bottom:20px; }
+  .success-title { font-family:'Bebas Neue',sans-serif; font-size:2.5rem; color:#166534; letter-spacing:3px; margin-bottom:8px; }
+  .success-msg   { font-size:0.85rem; color:#555; line-height:1.8; }
+
+  .error-card { background:#fff; border-radius:4px; box-shadow:0 4px 24px rgba(0,0,0,0.12); padding:60px 48px; text-align:center; }
+  .loading    { text-align:center; padding:80px; color:#888; font-size:0.85rem; }
+
+  @media(max-width:600px) {
+    body { padding:16px 12px; }
+    .inv-header { padding:24px; }
+    .inv-body   { padding:24px; }
+    .parties    { grid-template-columns:1fr; gap:20px; }
+    .sig-card   { padding:24px; }
+    .sig-inputs { grid-template-columns:1fr; }
+    .status-band { padding:10px 24px; }
+    .inv-footer { padding:14px 24px; }
+    .totals { justify-content:flex-start; }
+    .totals-box { width:100%; }
+  }
 </style>
 </head>
 <body>
-<div class="container">
+<div class="page-wrap">
   <div id="loading" class="loading">Loading invoice...</div>
-  <div id="invoice-view" style="display:none"></div>
-  <div id="success-view" style="display:none" class="card">
-    <div class="success-screen">
-      <div class="success-icon">✅</div>
-      <div class="success-title">SIGNED!</div>
-      <div class="success-msg">Your signature has been submitted successfully.<br>Hydro Pressure Washing will be in touch shortly.<br><br>You can now close this page.</div>
-    </div>
-  </div>
-  <div id="error-view" style="display:none" class="card">
-    <div class="error-screen">
-      <div style="font-size:3rem;margin-bottom:16px">⚠️</div>
-      <div style="font-family:var(--font-display);font-size:1.5rem;letter-spacing:2px;margin-bottom:8px">INVOICE NOT FOUND</div>
-      <div style="font-size:0.75rem;color:var(--muted)">This invoice link may be invalid or expired.</div>
-    </div>
-  </div>
+  <div id="invoice-view"  style="display:none"></div>
+  <div id="sig-section"   style="display:none"></div>
+  <div id="success-view"  style="display:none"></div>
+  <div id="error-view"    style="display:none"></div>
 </div>
 
 <script>
 const WORKER = 'https://dashboard-sheets.jamesfreeman8000.workers.dev';
-const BUSINESS = { name:'Hydro Pressure Washing', phone:'609-545-1018', email:'JamesFreeman8000@gmail.com', location:'Malaga, NJ' };
+const BUSINESS = {
+  name:    'Hydro Pressure Washing',
+  phone:   '609-545-1018',
+  email:   'JamesFreeman8000@gmail.com',
+  location:'Malaga, NJ',
+};
 
-const params = new URLSearchParams(window.location.search);
+const params    = new URLSearchParams(window.location.search);
 const invoiceId = params.get('id');
-const sheetId   = params.get('sheet');
-
-let invoiceData = null;
-let sigCanvas, sigCtx, isDrawing = false, hasSig = false;
-
-async function loadInvoice() {
-  if (!invoiceId || !sheetId) { showError(); return; }
-  try {
-    const r = await fetch(WORKER+'/sheets/get?range='+encodeURIComponent('Invoices!A:Z'));
-    const data = await r.json();
-    const rows = data.values || [];
-    if (rows.length < 2) { showError(); return; }
-    const headers = rows[0];
-    const row = rows.slice(1).find(r => r[0] == invoiceId);
-    if (!row) { showError(); return; }
-    invoiceData = {};
-    headers.forEach((h,i) => {
-      let v = row[i] || '';
-      if (h === 'lineItems') { try { v = JSON.parse(v); } catch { v=[]; } }
-      if (['subtotal','depositPercent','depositAmount','totalDue'].includes(h)) v = parseFloat(v)||0;
-      invoiceData[h] = v;
-    });
-    renderInvoice();
-  } catch(e) { showError(); }
-}
+let   inv       = null;
+let   sigCanvas, sigCtx, isDrawing = false, hasSig = false;
 
 function fmt(n) { return (n||0).toLocaleString('en-US',{style:'currency',currency:'USD'}); }
-function h(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function loadInvoice() {
+  if (!invoiceId) { showError('No invoice ID provided.'); return; }
+  try {
+    const r = await fetch(WORKER+'/sheets/get?range='+encodeURIComponent('Invoices!A:Z'));
+    const d = await r.json();
+    const rows = d.values || [];
+    if (rows.length < 2) { showError('Invoice not found.'); return; }
+    const headers = rows[0];
+    const row = rows.slice(1).find(r => r[0] == invoiceId);
+    if (!row) { showError('Invoice not found.'); return; }
+    inv = {};
+    headers.forEach((k,i) => {
+      let v = row[i] || '';
+      if (k === 'lineItems') { try { v = JSON.parse(v); } catch { v=[]; } }
+      if (['subtotal','depositPercent','depositAmount','totalDue'].includes(k)) v = parseFloat(v)||0;
+      inv[k] = v;
+    });
+    renderInvoice();
+  } catch(e) { showError('Could not load invoice. Please try again later.'); }
+}
 
 function renderInvoice() {
-  const inv = invoiceData;
-  const isSigned = inv.signedDate && inv.signedDate.length > 0;
-  const isPaid   = inv.status === 'Paid';
-  const lineItems = Array.isArray(inv.lineItems) ? inv.lineItems : [];
+  const lineItems  = Array.isArray(inv.lineItems) ? inv.lineItems : [];
   const payMethods = (inv.paymentMethods||'').split(',').filter(Boolean);
+  const isSigned   = !!(inv.signedDate);
+  const isPaid     = inv.status === 'Paid';
 
-  const payIcons = { Venmo:'💜', CashApp:'💚', Zelle:'💙', Check:'📝', Cash:'💵' };
-  const payHTML = payMethods.map(p=>'<div class="payment-pill">'+h(payIcons[p]||'')+' '+h(p)+'</div>').join('');
+  // Status
+  const statusMap = {
+    Draft:  {cls:'draft',  icon:'○', text:'Draft'},
+    Sent:   {cls:'sent',   icon:'◐', text:'Awaiting Signature'},
+    Signed: {cls:'signed', icon:'●', text:'Signed'},
+    Paid:   {cls:'paid',   icon:'✓', text:'Paid'},
+  };
+  const st = statusMap[inv.status] || statusMap['Sent'];
 
-  const statusBadge = isPaid
-    ? '<span class="status-badge status-paid">✓ Paid</span>'
-    : isSigned
-      ? '<span class="status-badge status-signed">✓ Signed</span>'
-      : '<span class="status-badge status-sent">Awaiting Signature</span>';
+  // Payment icons
+  const payIcon = {Venmo:'💜',CashApp:'💚',Zelle:'💙',Check:'📝',Cash:'💵'};
+  const payHTML = payMethods.map(p=>'<div class="pay-pill">'+esc(payIcon[p]||'')+'&nbsp;'+esc(p)+'</div>').join('');
 
-  let sigSection = '';
-  if (!isSigned && !isPaid) {
-    sigSection = `
-    <div class="card">
-      <div class="section-label">Your Signature</div>
-      <p style="font-size:0.7rem;color:var(--muted);margin-bottom:12px;line-height:1.7">
-        By signing below you agree to the services and total amount listed on this invoice.
-      </p>
-      <canvas id="sig-canvas" class="sig-canvas"></canvas>
-      <div style="display:flex;justify-content:flex-end;margin-top:6px">
-        <button class="btn btn-ghost" onclick="clearSig()" style="width:auto;padding:6px 14px;font-size:0.68rem">Clear</button>
-      </div>
-      <input type="text" id="sig-name" class="sig-name-input" placeholder="Type your full name to confirm"/>
-      <input type="date" id="sig-date" class="sig-name-input" style="margin-top:8px" value="${new Date().toISOString().split('T')[0]}"/>
-      <button class="btn btn-accent" onclick="submitSignature()" style="margin-top:14px">✓ Submit & Sign Invoice</button>
-    </div>`;
-  } else if (isSigned) {
-    sigSection = `
-    <div class="card">
-      <div class="section-label">Signature</div>
-      <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-top:8px">
-        ${inv.signatureData ? '<img src="'+h(inv.signatureData)+'" style="width:100%;max-height:120px;object-fit:contain;border-radius:6px"/>' : ''}
-        <div style="margin-top:8px;font-size:0.72rem;color:var(--muted)">Signed by: <strong style="color:var(--text)">${h(inv.signatureName)}</strong> on ${h(inv.signedDate)}</div>
-      </div>
-    </div>`;
+  // Line items
+  const itemRows = lineItems.map(li=>
+    '<tr><td>'+esc(li.desc||'Service')+'</td><td>'+fmt(li.amount)+'</td></tr>'
+  ).join('');
+
+  // Totals
+  let totalsHTML = '<div class="totals-row"><span>Subtotal</span><span>'+fmt(inv.subtotal)+'</span></div>';
+  if (inv.depositPercent > 0) {
+    totalsHTML += '<div class="totals-row" style="color:#b45309"><span>Deposit ('+inv.depositPercent+'%)</span><span>'+fmt(inv.depositAmount)+'</span></div>';
   }
+  totalsHTML += '<div class="totals-row total"><span>Total Due</span><span class="t-val">'+fmt(inv.totalDue)+'</span></div>';
 
   document.getElementById('invoice-view').innerHTML = `
-  <div class="card">
-    <div class="header">
+  <div class="invoice-card">
+    <!-- Header -->
+    <div class="inv-header">
       <div>
-        <div style="font-size:0.6rem;color:var(--accent);letter-spacing:3px;margin-bottom:4px">💧 PRESSURE WASHING</div>
-        <div class="biz-name">${h(BUSINESS.name)}</div>
-        <div class="biz-info">
-          📞 ${h(BUSINESS.phone)}<br>
-          ✉️ ${h(BUSINESS.email)}<br>
-          📍 ${h(BUSINESS.location)}
+        <div class="biz-logo">💧 ${esc(BUSINESS.name)}</div>
+        <div class="biz-tag">Professional Pressure Washing</div>
+        <div class="biz-contact">
+          📞 <span>${esc(BUSINESS.phone)}</span><br>
+          ✉️ <span>${esc(BUSINESS.email)}</span><br>
+          📍 <span>${esc(BUSINESS.location)}</span>
         </div>
       </div>
-      <div class="inv-number">
-        <div class="inv-number-label">Invoice</div>
-        <div class="inv-number-val">#${h(String(inv.number))}</div>
-        <div class="inv-number-date" style="margin-top:4px">Created: ${h(inv.createdDate)}</div>
-        <div class="inv-number-date">Due: ${h(inv.dueDate)}</div>
-        <div style="margin-top:8px">${statusBadge}</div>
+      <div class="inv-meta">
+        <div class="inv-label">Invoice</div>
+        <div class="inv-num">#${esc(String(inv.number))}</div>
+        <div class="inv-dates">
+          Created &nbsp;<span>${esc(inv.createdDate)}</span><br>
+          Due &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span>${esc(inv.dueDate)}</span>
+        </div>
       </div>
     </div>
-    <hr class="divider"/>
-    <div class="section-label">Bill To</div>
-    <div class="customer-name">${h(inv.customerName)}</div>
-    <div class="customer-info">
-      ${inv.customerPhone ? '📞 '+h(inv.customerPhone)+'<br>' : ''}
-      ${inv.customerEmail ? '✉️ '+h(inv.customerEmail)+'<br>' : ''}
-      ${inv.customerAddress ? '📍 '+h(inv.customerAddress) : ''}
+
+    <!-- Status band -->
+    <div class="status-band ${st.cls}">
+      <div class="status-dot"></div>
+      ${st.text}
+      ${isPaid ? ' &mdash; Paid on '+esc(inv.paidDate) : ''}
     </div>
-    <hr class="divider"/>
-    <div class="section-label">Services</div>
-    <table>
-      <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>
-        ${lineItems.map(li=>'<tr><td>'+h(li.desc)+'</td><td style="text-align:right;color:var(--accent)">'+fmt(li.amount)+'</td></tr>').join('')}
-      </tbody>
-    </table>
-    <div class="total-row">
-      <div>
-        <div class="total-label">Subtotal</div>
-        ${inv.depositPercent > 0 ? '<div class="total-label" style="margin-top:2px">Deposit ('+inv.depositPercent+'%)</div>' : ''}
+
+    <!-- Body -->
+    <div class="inv-body">
+
+      <!-- Parties -->
+      <div class="parties">
+        <div>
+          <div class="party-label">From</div>
+          <div class="party-name">${esc(BUSINESS.name)}</div>
+          <div class="party-info">${esc(BUSINESS.phone)}<br>${esc(BUSINESS.email)}<br>${esc(BUSINESS.location)}</div>
+        </div>
+        <div>
+          <div class="party-label">Bill To</div>
+          <div class="party-name">${esc(inv.customerName)}</div>
+          <div class="party-info">
+            ${inv.customerPhone ? esc(inv.customerPhone)+'<br>' : ''}
+            ${inv.customerEmail ? esc(inv.customerEmail)+'<br>' : ''}
+            ${inv.customerAddress ? esc(inv.customerAddress) : ''}
+          </div>
+        </div>
       </div>
-      <div style="text-align:right">
-        <div style="font-size:0.85rem;color:var(--muted)">${fmt(inv.subtotal)}</div>
-        ${inv.depositPercent > 0 ? '<div class="total-label" style="color:var(--yellow)">'+fmt(inv.depositAmount)+'</div>' : ''}
+
+      <!-- Line items -->
+      <table class="items-table">
+        <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+
+      <!-- Totals -->
+      <div class="totals">
+        <div class="totals-box">${totalsHTML}</div>
       </div>
+
+      <!-- Payment methods -->
+      ${payMethods.length ? `<div class="payment-section"><div class="section-title">Payment Methods Accepted</div><div class="pay-pills">${payHTML}</div></div>` : ''}
+
+      <!-- Notes -->
+      ${inv.notes ? `<div class="section-title" style="margin-bottom:8px">Notes & Terms</div><div class="notes-box">${esc(inv.notes)}</div>` : ''}
+
+    </div><!-- /inv-body -->
+
+    <div class="inv-footer">
+      Thank you for choosing ${esc(BUSINESS.name)} &mdash; ${esc(BUSINESS.phone)}
     </div>
-    <div style="background:var(--surface2);border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-      <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Due</div>
-      <div style="font-family:var(--font-display);font-size:2rem;color:var(--accent);letter-spacing:1px">${fmt(inv.totalDue)}</div>
-    </div>
-    ${payMethods.length ? '<div class="payment-section"><div class="section-label" style="margin-top:16px">Payment Methods Accepted</div><div class="payment-grid">'+payHTML+'</div></div>' : ''}
-    ${inv.notes ? '<div style="margin-top:16px"><div class="section-label">Notes</div><div class="notes-box">'+h(inv.notes)+'</div></div>' : ''}
-  </div>
-  ${sigSection}
-  `;
+  </div>`;
 
   document.getElementById('loading').style.display = 'none';
   document.getElementById('invoice-view').style.display = 'block';
 
-  if (!isSigned && !isPaid) initSigCanvas();
+  // Signature section
+  if (!isSigned && !isPaid) {
+    document.getElementById('sig-section').innerHTML = `
+    <div class="sig-card">
+      <div class="sig-title">Sign This Invoice</div>
+      <div class="sig-sub">By signing below you agree to the services and total shown above. Please draw your signature and confirm your name.</div>
+      <button class="clear-btn" onclick="clearSig()">Clear</button>
+      <div class="sig-canvas-wrap" id="sig-wrap">
+        <canvas id="sig-canvas"></canvas>
+        <div class="sig-hint" id="sig-hint">✍️ Sign here with your finger or mouse</div>
+      </div>
+      <div class="sig-inputs">
+        <input id="sig-name" class="sig-input" type="text" placeholder="Full name"/>
+        <input id="sig-date" class="sig-input" type="date" value="${new Date().toISOString().split('T')[0]}"/>
+      </div>
+      <button class="submit-btn" id="submit-btn" onclick="submitSignature()">Submit &amp; Sign Invoice</button>
+    </div>`;
+    document.getElementById('sig-section').style.display = 'block';
+    initSigCanvas();
+  } else if (isSigned) {
+    document.getElementById('sig-section').innerHTML = `
+    <div class="sig-card">
+      <div class="sig-title">Signature on File</div>
+      <div class="signed-badge">
+        ${inv.signatureData ? '<img src="'+esc(inv.signatureData)+'" style="max-height:100px;margin-bottom:10px;display:block"/>' : ''}
+        ✅ Signed by <strong>${esc(inv.signatureName)}</strong> on ${esc(inv.signedDate)}
+      </div>
+    </div>`;
+    document.getElementById('sig-section').style.display = 'block';
+  }
 }
 
 function initSigCanvas() {
   sigCanvas = document.getElementById('sig-canvas');
   if (!sigCanvas) return;
   sigCtx = sigCanvas.getContext('2d');
-  sigCanvas.width  = sigCanvas.offsetWidth * window.devicePixelRatio;
-  sigCanvas.height = sigCanvas.offsetHeight * window.devicePixelRatio;
-  sigCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
-  sigCtx.strokeStyle = '#00d4aa';
-  sigCtx.lineWidth   = 2.5;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = sigCanvas.parentElement.getBoundingClientRect();
+  sigCanvas.width  = rect.width * dpr;
+  sigCanvas.height = 160 * dpr;
+  sigCanvas.style.height = '160px';
+  sigCtx.scale(dpr, dpr);
+  sigCtx.strokeStyle = '#0d1b2a';
+  sigCtx.lineWidth   = 2;
   sigCtx.lineCap     = 'round';
   sigCtx.lineJoin    = 'round';
 
-  const getPos = (e) => {
-    const rect = sigCanvas.getBoundingClientRect();
-    const touch = e.touches ? e.touches[0] : e;
-    return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+  const pos = e => {
+    const r = sigCanvas.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x:(t.clientX-r.left), y:(t.clientY-r.top) };
   };
 
-  sigCanvas.addEventListener('mousedown',  e => { isDrawing=true; const p=getPos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); });
-  sigCanvas.addEventListener('mousemove',  e => { if(!isDrawing) return; const p=getPos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); hasSig=true; sigCanvas.classList.add('signed'); });
-  sigCanvas.addEventListener('mouseup',    () => isDrawing=false);
-  sigCanvas.addEventListener('mouseleave', () => isDrawing=false);
-  sigCanvas.addEventListener('touchstart', e => { e.preventDefault(); isDrawing=true; const p=getPos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); }, {passive:false});
-  sigCanvas.addEventListener('touchmove',  e => { e.preventDefault(); if(!isDrawing) return; const p=getPos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); hasSig=true; sigCanvas.classList.add('signed'); }, {passive:false});
-  sigCanvas.addEventListener('touchend',   () => isDrawing=false);
+  sigCanvas.addEventListener('mousedown',  e=>{ isDrawing=true; const p=pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); });
+  sigCanvas.addEventListener('mousemove',  e=>{ if(!isDrawing) return; const p=pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); onSig(); });
+  sigCanvas.addEventListener('mouseup',    ()=>isDrawing=false);
+  sigCanvas.addEventListener('mouseleave', ()=>isDrawing=false);
+  sigCanvas.addEventListener('touchstart', e=>{ e.preventDefault(); isDrawing=true; const p=pos(e); sigCtx.beginPath(); sigCtx.moveTo(p.x,p.y); },{passive:false});
+  sigCanvas.addEventListener('touchmove',  e=>{ e.preventDefault(); if(!isDrawing) return; const p=pos(e); sigCtx.lineTo(p.x,p.y); sigCtx.stroke(); onSig(); },{passive:false});
+  sigCanvas.addEventListener('touchend',   ()=>isDrawing=false);
+}
+
+function onSig() {
+  hasSig = true;
+  document.getElementById('sig-wrap').classList.add('signed');
+  const hint = document.getElementById('sig-hint');
+  if (hint) hint.style.display = 'none';
 }
 
 function clearSig() {
   if (!sigCtx) return;
   sigCtx.clearRect(0,0,sigCanvas.width,sigCanvas.height);
   hasSig = false;
-  sigCanvas.classList.remove('signed');
+  document.getElementById('sig-wrap').classList.remove('signed');
+  const hint = document.getElementById('sig-hint');
+  if (hint) hint.style.display = 'block';
 }
 
 async function submitSignature() {
   const name = (document.getElementById('sig-name')?.value||'').trim();
   const date = document.getElementById('sig-date')?.value || new Date().toISOString().split('T')[0];
   if (!hasSig) { alert('Please draw your signature above.'); return; }
-  if (!name)   { alert('Please type your full name to confirm.'); return; }
+  if (!name)   { alert('Please type your full name.'); return; }
 
-  const sigData = sigCanvas.toDataURL('image/png');
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
 
   try {
+    const sigData = sigCanvas.toDataURL('image/png');
     const r = await fetch(WORKER+'/sheets/sign-invoice', {
-      method: 'POST',
-      headers: { 'Content-Type':'application/json' },
-      body: JSON.stringify({ invoiceId, signatureName: name, signatureData: sigData, signedDate: date }),
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ invoiceId, signatureName:name, signatureData:sigData, signedDate:date }),
     });
-    if (!r.ok) throw new Error('Submit failed');
-    document.getElementById('invoice-view').style.display = 'none';
-    document.getElementById('success-view').style.display = 'block';
+    if (!r.ok) throw new Error('Failed');
+    document.getElementById('invoice-view').style.display  = 'none';
+    document.getElementById('sig-section').style.display   = 'none';
+    document.getElementById('success-view').innerHTML = `
+    <div class="success-card">
+      <div class="success-icon">✅</div>
+      <div class="success-title">Signed!</div>
+      <div class="success-msg">
+        Your signature has been submitted successfully.<br>
+        <strong>${esc(BUSINESS.name)}</strong> will be in touch shortly.<br><br>
+        📞 ${esc(BUSINESS.phone)}<br>
+        ✉️ ${esc(BUSINESS.email)}<br><br>
+        You can now close this page.
+      </div>
+    </div>`;
+    document.getElementById('success-view').style.display  = 'block';
   } catch(e) {
-    alert('Error submitting signature. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Submit & Sign Invoice';
+    alert('Error submitting. Please try again.');
   }
 }
 
-function showError() {
-  document.getElementById('loading').style.display  = 'none';
+function showError(msg) {
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('error-view').innerHTML = `
+  <div class="error-card">
+    <div style="font-size:3rem;margin-bottom:16px">⚠️</div>
+    <div style="font-size:1.2rem;font-weight:700;color:#0d1b2a;margin-bottom:8px">Invoice Not Found</div>
+    <div style="font-size:0.82rem;color:#888">${esc(msg||'This link may be invalid or expired.')}</div>
+  </div>`;
   document.getElementById('error-view').style.display = 'block';
 }
 

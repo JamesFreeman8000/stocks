@@ -781,7 +781,12 @@
       <div class="form-group"><label>Date</label><input type="date" id="s-date"/></div>
       <div class="form-group"><label>Time</label><input type="time" id="s-time"/></div>
       <div class="form-group full"><label>Event Title</label><input type="text" id="s-title" placeholder="Job at Smith residence..."/></div>
-      <div class="form-group"><label>Customer Name</label><input type="text" id="s-customer" placeholder="Customer name"/></div>
+      <div class="form-group" style="position:relative">
+        <label>Customer Name</label>
+        <input type="text" id="s-customer" placeholder="Search or enter name..." autocomplete="off"
+          oninput="filterScheduleCustomers()" onfocus="showScheduleCustomerDropdown()" onblur="setTimeout(hideScheduleCustomerDropdown,200)"/>
+        <div id="s-customer-dropdown" style="display:none;position:absolute;top:62px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px #00000060"></div>
+      </div>
       <div class="form-group"><label>Type</label>
         <select id="s-type"><option>Job</option><option>Estimate</option><option>Follow-up</option><option>Other</option></select>
       </div>
@@ -2181,7 +2186,6 @@ const _origSaveIncome = saveIncome;
 
 function openNewEventFromTopbar() {
   console.log('openNewEventFromTopbar called');
-  // Clear the form
   ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
@@ -2189,6 +2193,7 @@ function openNewEventFromTopbar() {
   clearCheckedServices('s-services');
   document.getElementById('s-type').value = 'Job';
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('s-customer-dropdown').style.display = 'none';
   document.getElementById('modal-schedule').classList.add('open');
   console.log('modal-schedule open class added:', document.getElementById('modal-schedule').classList.contains('open'));
 }
@@ -2548,20 +2553,44 @@ async function saveEvent() {
   if (recurringVal === 'biweekly') recurringDays = 14;
   if (recurringVal === 'monthly')  recurringDays = 30;
   if (recurringVal === 'custom')   recurringDays = parseInt(document.getElementById('s-recurring-days').value)||30;
+
+  const customerName = document.getElementById('s-customer').value.trim();
+  const phone   = document.getElementById('s-phone').value.trim();
+  const email   = document.getElementById('s-email').value.trim();
+  const address = document.getElementById('s-address').value.trim();
+
+  // Auto-create customer profile if they don't already exist
+  if (customerName) {
+    const existing = customerData.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+    if (!existing) {
+      const newCustomer = {
+        id:      Date.now(),
+        name:    customerName,
+        phone:   phone,
+        email:   email,
+        address: address,
+        tag:     'New',
+        notes:   '',
+      };
+      customerData.push(newCustomer);
+      syncSheet('customers'); // non-blocking
+    }
+  }
+
   scheduleData.push({
-    id:           Date.now(),
-    date:         document.getElementById('s-date').value,
-    time:         document.getElementById('s-time').value,
-    title:        document.getElementById('s-title').value,
-    customer:     document.getElementById('s-customer').value,
-    type:         document.getElementById('s-type').value,
-    services:     getCheckedServices('s-services'),
-    phone:        document.getElementById('s-phone').value,
-    email:        document.getElementById('s-email').value,
-    address:      document.getElementById('s-address').value,
-    notes:        document.getElementById('s-notes').value,
-    createdBy:    currentUser.email,
-    recurring:    recurringVal !== 'none' ? recurringVal : '',
+    id:            Date.now() + 1,
+    date:          document.getElementById('s-date').value,
+    time:          document.getElementById('s-time').value,
+    title:         document.getElementById('s-title').value,
+    customer:      customerName,
+    type:          document.getElementById('s-type').value,
+    services:      getCheckedServices('s-services'),
+    phone,
+    email,
+    address,
+    notes:         document.getElementById('s-notes').value,
+    createdBy:     currentUser.email,
+    recurring:     recurringVal !== 'none' ? recurringVal : '',
     recurringDays: recurringDays,
   });
   await syncSheet('schedule');
@@ -3351,7 +3380,7 @@ function filterInvoiceCustomers() {
   const q = document.getElementById('inv-customer-search').value.toLowerCase();
   const matches = q.length < 1 ? customerData.slice(0,10) : customerData.filter(c=>(c.name||'').toLowerCase().includes(q));
   renderInvoiceCustomerDropdown(matches);
-  showInvoiceCustomerDropdown();
+  document.getElementById('inv-customer-dropdown').style.display = 'block';
 }
 
 function renderInvoiceCustomerDropdown(customers) {
@@ -3360,14 +3389,16 @@ function renderInvoiceCustomerDropdown(customers) {
   dd.innerHTML = customers.map(c=>
     '<div class="town-option" onmousedown="selectInvoiceCustomer('+c.id+')">'+
       h(c.name)+(c.phone?' <span style="color:var(--muted);font-size:0.62rem">'+h(c.phone)+'</span>':'')+
+      (c.email?' <span style="color:var(--muted);font-size:0.62rem">'+h(c.email)+'</span>':'')+
     '</div>'
   ).join('');
 }
 
 function showInvoiceCustomerDropdown() {
-  const dd = document.getElementById('inv-customer-dropdown');
-  filterInvoiceCustomers();
-  dd.style.display = 'block';
+  const q = document.getElementById('inv-customer-search').value.toLowerCase();
+  const matches = q.length < 1 ? customerData.slice(0,10) : customerData.filter(c=>(c.name||'').toLowerCase().includes(q));
+  renderInvoiceCustomerDropdown(matches);
+  document.getElementById('inv-customer-dropdown').style.display = 'block';
 }
 
 function hideInvoiceCustomerDropdown() {
@@ -3507,7 +3538,7 @@ function renderInvoices() {
       '<td style="color:var(--muted)">'+h(inv.signedDate||'—')+'</td>'+
       '<td><div style="display:flex;gap:6px">'+
         '<button class="btn btn-ghost btn-sm" onclick="showInvoiceLink(invoiceData.find(x=>x.id=='+inv.id+'))">🔗 Link</button>'+
-        '<button class="btn btn-ghost btn-sm" onclick="markInvoicePaid('+inv.id+')" '+(inv.status==='Paid'?'style="opacity:0.4" disabled':'')+'>✓ Paid</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="markInvoicePaid('+inv.id+')" style="'+(inv.status==='Paid'?'border-color:var(--yellow);color:var(--yellow)':'border-color:#34d399;color:#34d399')+'">'+(inv.status==='Paid'?'↩ Unpaid':'✓ Paid')+'</button>'+
         '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteInvoice('+inv.id+'))">✕</button>'+
       '</div></td></tr>';
   });
@@ -3517,8 +3548,14 @@ function renderInvoices() {
 
 async function markInvoicePaid(id) {
   const inv = invoiceData.find(x=>x.id==id); if(!inv) return;
-  inv.status = 'Paid';
-  inv.paidDate = new Date().toISOString().split('T')[0];
+  if (inv.status === 'Paid') {
+    // Toggle back to unpaid
+    inv.status = inv.signedDate ? 'Signed' : 'Sent';
+    inv.paidDate = '';
+  } else {
+    inv.status = 'Paid';
+    inv.paidDate = new Date().toISOString().split('T')[0];
+  }
   await syncSheet('invoices');
   renderInvoices();
 }
@@ -3527,6 +3564,53 @@ async function deleteInvoice(id) {
   invoiceData = invoiceData.filter(x=>x.id!=id);
   await syncSheet('invoices');
   renderInvoices();
+}
+
+// ═══════════════ SCHEDULE CUSTOMER SEARCH ═══════════════
+function filterScheduleCustomers() {
+  const q = document.getElementById('s-customer').value.toLowerCase();
+  const matches = q.length < 1
+    ? customerData.slice(0, 8)
+    : customerData.filter(c => (c.name||'').toLowerCase().includes(q));
+  renderScheduleCustomerDropdown(matches, q);
+  document.getElementById('s-customer-dropdown').style.display = 'block';
+}
+
+function renderScheduleCustomerDropdown(customers, q) {
+  const dd = document.getElementById('s-customer-dropdown');
+  let html = customers.map(c =>
+    '<div class="town-option" onmousedown="selectScheduleCustomer('+c.id+')">'+
+      h(c.name)+
+      (c.phone ? ' <span style="color:var(--muted);font-size:0.62rem">'+h(c.phone)+'</span>' : '')+
+    '</div>'
+  ).join('');
+  // If typed something not matching exactly, offer to use as new customer
+  if (q && !customers.find(c => c.name.toLowerCase() === q)) {
+    html += '<div class="town-option" style="color:var(--accent);border-top:1px solid var(--border)" onmousedown="useNewScheduleCustomer()">+ Use "'+h(q)+'" as new customer</div>';
+  }
+  dd.innerHTML = html || '<div class="town-option" style="color:var(--muted)">No customers found</div>';
+}
+
+function showScheduleCustomerDropdown() {
+  filterScheduleCustomers();
+}
+
+function hideScheduleCustomerDropdown() {
+  document.getElementById('s-customer-dropdown').style.display = 'none';
+}
+
+function selectScheduleCustomer(id) {
+  const c = customerData.find(x => x.id == id); if (!c) return;
+  document.getElementById('s-customer').value = c.name;
+  document.getElementById('s-phone').value   = c.phone || '';
+  document.getElementById('s-email').value   = c.email || '';
+  document.getElementById('s-address').value = c.address || '';
+  hideScheduleCustomerDropdown();
+}
+
+function useNewScheduleCustomer() {
+  // Just keep what they typed — saveEvent will create the profile
+  hideScheduleCustomerDropdown();
 }
 
 // ═══════════════ WEATHER ═══════════════
