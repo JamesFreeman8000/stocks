@@ -329,6 +329,9 @@
     <button class="nav-btn" onclick="showTab('reports')" id="nav-reports">
       <span class="nav-icon">📊</span> Reports
     </button>
+    <button class="nav-btn" onclick="showTab('invoices')" id="nav-invoices">
+      <span class="nav-icon">🧾</span> Invoices
+    </button>
     <button class="nav-btn" onclick="showTab('employees')" id="nav-employees">
       <span class="nav-icon">👷</span> Employees
     </button>
@@ -548,6 +551,21 @@
   </div>
 
   <!-- ═══════════════ PHOTOS (REMOVED - replaced by customer profiles) ═══════════════ -->
+
+  <!-- ═══════════════ INVOICES ═══════════════ -->
+  <div class="tab-content" id="tab-invoices">
+    <div class="stats-row" id="invoice-stats"></div>
+    <div class="section-head">
+      <div class="section-head-title">INVOICES</div>
+      <button class="btn btn-accent" onclick="openCreateInvoice()">+ Create Invoice</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Customer</th><th>Type</th><th>Amount</th><th>Status</th><th>Created</th><th>Signed</th><th></th></tr></thead>
+        <tbody id="invoices-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
   <!-- ═══════════════ EMPLOYEES ═══════════════ -->
   <div class="tab-content" id="tab-employees">
@@ -939,6 +957,92 @@
   </div>
 </div>
 
+<!-- Create Invoice Modal -->
+<div class="modal-overlay" id="modal-create-invoice">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:640px">
+    <div class="modal-title" id="invoice-modal-title">CREATE INVOICE</div>
+    <div class="form-grid">
+      <!-- Customer search -->
+      <div class="form-group full">
+        <label>Customer</label>
+        <div style="position:relative">
+          <input type="text" id="inv-customer-search" placeholder="Search customer name..." oninput="filterInvoiceCustomers()" onfocus="showInvoiceCustomerDropdown()" onblur="setTimeout(hideInvoiceCustomerDropdown,200)" autocomplete="off"/>
+          <div id="inv-customer-dropdown" style="display:none;position:absolute;top:38px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:200px;overflow-y:auto;box-shadow:0 8px 24px #00000040"></div>
+        </div>
+      </div>
+      <div class="form-group"><label>Customer Email</label><input type="email" id="inv-email" placeholder="auto-filled"/></div>
+      <div class="form-group"><label>Customer Phone</label><input type="tel" id="inv-phone" placeholder="auto-filled"/></div>
+      <div class="form-group"><label>Invoice Type</label>
+        <select id="inv-type" onchange="updateInvoiceType()">
+          <option value="full">Full Invoice</option>
+          <option value="deposit">Deposit Invoice (35%)</option>
+          <option value="final">Final Invoice (remaining balance)</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Due Date</label><input type="date" id="inv-due-date"/></div>
+      <!-- Line items -->
+      <div class="form-group full">
+        <label>Line Items</label>
+        <div id="inv-line-items" style="display:flex;flex-direction:column;gap:8px;margin-top:4px"></div>
+        <button class="btn btn-ghost btn-sm" onclick="addLineItem()" style="margin-top:8px;align-self:flex-start">+ Add Line Item</button>
+      </div>
+      <!-- Deposit % (shown for deposit type) -->
+      <div class="form-group" id="inv-deposit-group" style="display:none">
+        <label>Deposit %</label>
+        <input type="number" id="inv-deposit-pct" value="35" min="1" max="100" oninput="recalcInvoice()"/>
+      </div>
+      <!-- Link to existing job (for final invoice) -->
+      <div class="form-group full" id="inv-job-group" style="display:none">
+        <label>Link to Completed Job (optional)</label>
+        <select id="inv-job-link">
+          <option value="">None</option>
+        </select>
+      </div>
+      <div class="form-group full"><label>Notes / Terms</label><textarea id="inv-notes" placeholder="Payment due within 14 days. Thank you for your business!"></textarea></div>
+      <!-- Payment methods -->
+      <div class="form-group full">
+        <label style="margin-bottom:8px;display:block">Payment Methods to Show</label>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <label class="svc-chip" onclick="toggleChip(this)" data-value="Venmo">💜 Venmo</label>
+          <label class="svc-chip checked" onclick="toggleChip(this)" data-value="CashApp">💚 Cash App</label>
+          <label class="svc-chip" onclick="toggleChip(this)" data-value="Zelle">💙 Zelle</label>
+          <label class="svc-chip" onclick="toggleChip(this)" data-value="Check">📝 Check</label>
+          <label class="svc-chip" onclick="toggleChip(this)" data-value="Cash">💵 Cash</label>
+        </div>
+      </div>
+      <!-- Total display -->
+      <div class="form-group full">
+        <div style="background:var(--surface2);border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
+          <div id="inv-total-breakdown" style="font-size:0.72rem;color:var(--muted);line-height:2"></div>
+          <div style="text-align:right">
+            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Due</div>
+            <div id="inv-total-display" style="font-family:var(--font-display);font-size:1.8rem;color:var(--accent)">$0.00</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('create-invoice')">Cancel</button>
+      <button class="btn btn-ghost" onclick="saveInvoiceDraft()" style="border-color:var(--yellow);color:var(--yellow)">Save Draft</button>
+      <button class="btn btn-accent" onclick="saveAndSendInvoice()">Save & Get Link</button>
+    </div>
+  </div>
+</div>
+
+<!-- Invoice Preview Modal -->
+<div class="modal-overlay" id="modal-invoice-preview">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:680px">
+    <div class="modal-title">INVOICE READY</div>
+    <div id="invoice-preview-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('invoice-preview')">Close</button>
+      <button class="btn btn-ghost" onclick="copyInvoiceLink()" style="border-color:var(--accent);color:var(--accent)">📋 Copy Link</button>
+      <button class="btn btn-accent" onclick="openInvoiceEmail()">📧 Open in Email</button>
+    </div>
+  </div>
+</div>
+
 <!-- Lightbox -->
 <div class="modal-overlay" id="modal-lightbox" onclick="closeModal('lightbox')">
   <div style="max-width:90vw;max-height:90vh;position:relative" onclick="event.stopPropagation()">
@@ -990,7 +1094,8 @@ const SHEET_ID    = '1YKFPcaNMqzpFNvF_rz8Cxry8DVv2RfhTsvnY4_us0dI';
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets openid email profile';
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
-const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications' };
+const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications', invoices:'Invoices' };
+const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type'];
 const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
 const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
 const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy','recurring','recurringDays'];
@@ -1308,7 +1413,7 @@ function rowToObj(headers, row) {
     if (key==='services') v = v ? v.split('|').filter(Boolean) : [];
     if (key==='employeeEmails') v = v ? v.split('|').filter(Boolean) : [];
     if (key==='employeeNames')  v = v ? v.split('|').filter(Boolean) : [];
-    if (['originalData','newData'].includes(key)) { try { v = v ? JSON.parse(v) : {}; } catch{ v={}; } }
+    if (['originalData','newData','lineItems'].includes(key)) { try { v = v ? JSON.parse(v) : (key==='lineItems'?[]:{}); } catch{ v=key==='lineItems'?[]:{};} }
     if (key==='read') v = v === 'true' || v === true;
     if (key==='completed') v = v === 'true' || v === true;
     obj[key] = v;
@@ -1322,7 +1427,7 @@ function objToRow(headers, obj) {
     if (key==='services') return Array.isArray(obj.services) ? obj.services.join('|') : (obj.service||'');
     if (key==='employeeEmails') return Array.isArray(obj.employeeEmails) ? obj.employeeEmails.join('|') : '';
     if (key==='employeeNames')  return Array.isArray(obj.employeeNames)  ? obj.employeeNames.join('|')  : '';
-    if (['originalData','newData'].includes(key)) return obj[key] ? JSON.stringify(obj[key]) : '';
+    if (['originalData','newData','lineItems'].includes(key)) return obj[key] ? JSON.stringify(obj[key]) : '';
     const v = obj[key];
     return (v !== undefined && v !== null) ? String(v) : '';
   });
@@ -1334,7 +1439,7 @@ async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await identifyUser();
-    const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
+    const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows,invRows] = await Promise.all([
       sheetsGet(SHEETS.income+'!A:Z'),
       sheetsGet(SHEETS.expenses+'!A:Z'),
       sheetsGet(SHEETS.schedule+'!A:Z'),
@@ -1342,6 +1447,7 @@ async function loadAllData() {
       sheetsGet(SHEETS.employees+'!A:Z'),
       sheetsGet(SHEETS.pending+'!A:Z'),
       sheetsGet(SHEETS.notifications+'!A:Z'),
+      sheetsGet(SHEETS.invoices+'!A:Z'),
     ]);
     const parse = (rows, headers) =>
       rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : [];
@@ -1354,6 +1460,7 @@ async function loadAllData() {
     employeeData = parse(empRows,   EMPLOYEE_HEADERS);
     pendingData  = parse(penRows,   PENDING_HEADERS);
     notifData    = parse(notifRows, NOTIF_HEADERS);
+    invoiceData  = parse(invRows,   INVOICE_HEADERS) || [];
 
     // Update localStorage to match sheet
     save('pw_income',    incomeData);
@@ -1416,6 +1523,7 @@ async function syncSheet(type) {
     employees:     { headers:EMPLOYEE_HEADERS, data:employeeData, sheet:SHEETS.employees },
     pending:       { headers:PENDING_HEADERS,  data:pendingData,  sheet:SHEETS.pending },
     notifications: { headers:NOTIF_HEADERS,    data:notifData,    sheet:SHEETS.notifications },
+    invoices:      { headers:INVOICE_HEADERS,  data:invoiceData,  sheet:SHEETS.invoices },
   };
   const entry = map[type]; if (!entry) return;
   const { headers, data, sheet } = entry;
@@ -1465,7 +1573,9 @@ let currentUser = (function() {
 let dataLoaded   = false;
 let isLoading    = false; // true while loadAllData is running — blocks saves
 let assignJobId  = null;  // job being assigned employees
-let editingPendingId = null; // pending record being reviewed
+let invoiceData  = [];
+let editingInvoiceId = null;
+let selectedInvoiceCustomer = null;
 let editingEmployeeId = null;
 
 let calMonth = new Date().getMonth();
@@ -2100,7 +2210,7 @@ function showTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   const nb = document.getElementById('nav-' + tab);
   if (nb) nb.classList.add('active');
-  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS',employees:'EMPLOYEES',pending:'PENDING APPROVAL'};
+  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS',employees:'EMPLOYEES',pending:'PENDING APPROVAL',invoices:'INVOICES'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab.toUpperCase();
   closeSidebar();
   if (tab==='income')    renderIncome();
@@ -2111,6 +2221,7 @@ function showTab(tab) {
   if (tab==='home')      renderHomeStats();
   if (tab==='employees') renderEmployees();
   if (tab==='pending')   renderPending();
+  if (tab==='invoices')  renderInvoices();
 }
 
 // ═══════════════ MODALS ═══════════════
@@ -3144,6 +3255,278 @@ function sortTable(type,col){
 }
 
 // ═══════════════ INIT ═══════════════
+// ═══════════════ INVOICES ═══════════════
+const BUSINESS = {
+  name:    'Hydro Pressure Washing',
+  phone:   '609-545-1018',
+  email:   'JamesFreeman8000@gmail.com',
+  location:'Malaga, NJ',
+};
+
+function getNextInvoiceNumber() {
+  if (!invoiceData.length) return 1;
+  const nums = invoiceData.map(i => parseInt(i.number)||0);
+  return Math.max(...nums) + 1;
+}
+
+function openCreateInvoice() {
+  editingInvoiceId = null;
+  selectedInvoiceCustomer = null;
+  document.getElementById('invoice-modal-title').textContent = 'CREATE INVOICE';
+  document.getElementById('inv-customer-search').value = '';
+  document.getElementById('inv-email').value = '';
+  document.getElementById('inv-phone').value = '';
+  document.getElementById('inv-type').value = 'full';
+  document.getElementById('inv-notes').value = 'Payment due within 14 days. Thank you for your business!';
+  document.getElementById('inv-deposit-group').style.display = 'none';
+  document.getElementById('inv-job-group').style.display = 'none';
+  // Set default due date 14 days from now
+  const due = new Date(); due.setDate(due.getDate()+14);
+  document.getElementById('inv-due-date').value = due.toISOString().split('T')[0];
+  // Clear payment method chips
+  document.querySelectorAll('#modal-create-invoice .svc-chip').forEach(c => c.classList.remove('checked'));
+  document.querySelector('#modal-create-invoice .svc-chip[data-value="CashApp"]')?.classList.add('checked');
+  // Reset line items
+  document.getElementById('inv-line-items').innerHTML = '';
+  addLineItem();
+  recalcInvoice();
+  document.getElementById('modal-create-invoice').classList.add('open');
+}
+
+function addLineItem(desc='', amount='') {
+  const id = Date.now();
+  const div = document.createElement('div');
+  div.style.cssText = 'display:grid;grid-template-columns:1fr auto auto;gap:8px;align-items:center';
+  div.dataset.lineItem = id;
+  div.innerHTML =
+    '<input type="text" placeholder="Service description..." value="'+h(desc)+'" oninput="recalcInvoice()" style="font-size:0.73rem;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono)"/>'+
+    '<input type="number" placeholder="0.00" value="'+h(String(amount))+'" oninput="recalcInvoice()" style="width:90px;font-size:0.73rem;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:var(--font-mono)"/>'+
+    '<button onclick="this.parentElement.remove();recalcInvoice()" style="background:var(--red)22;border:1px solid var(--red)50;color:var(--red);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:0.75rem">✕</button>';
+  document.getElementById('inv-line-items').appendChild(div);
+}
+
+function getLineItems() {
+  return [...document.querySelectorAll('#inv-line-items [data-line-item]')].map(div => {
+    const inputs = div.querySelectorAll('input');
+    return { desc: inputs[0].value.trim(), amount: parseFloat(inputs[1].value)||0 };
+  }).filter(li => li.desc || li.amount);
+}
+
+function recalcInvoice() {
+  const items = getLineItems();
+  const subtotal = items.reduce((s,i)=>s+i.amount,0);
+  const type = document.getElementById('inv-type').value;
+  let totalDue = subtotal;
+  let breakdown = '<div>Subtotal: '+fmt(subtotal)+'</div>';
+  if (type === 'deposit') {
+    const pct = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
+    totalDue = subtotal * (pct/100);
+    breakdown += '<div style="color:var(--yellow)">Deposit ('+pct+'%): '+fmt(totalDue)+'</div>';
+  } else if (type === 'final') {
+    breakdown += '<div style="color:var(--accent2)">Remaining balance due</div>';
+  }
+  document.getElementById('inv-total-breakdown').innerHTML = breakdown;
+  document.getElementById('inv-total-display').textContent = fmt(totalDue);
+}
+
+function updateInvoiceType() {
+  const type = document.getElementById('inv-type').value;
+  document.getElementById('inv-deposit-group').style.display = type==='deposit' ? 'flex' : 'none';
+  document.getElementById('inv-job-group').style.display = type==='final' ? 'flex' : 'none';
+  if (type === 'final') populateJobLink();
+  recalcInvoice();
+}
+
+function populateJobLink() {
+  const sel = document.getElementById('inv-job-link');
+  const cid = selectedInvoiceCustomer?.id;
+  const jobs = cid ? incomeData.filter(j=>j.customerId==cid||j.customer===selectedInvoiceCustomer?.name) : incomeData;
+  sel.innerHTML = '<option value="">None</option>' + jobs.map(j=>'<option value="'+j.id+'">'+h(j.date+' — '+j.customer+' — '+fmt(j.amount))+'</option>').join('');
+}
+
+// Customer search in invoice modal
+function filterInvoiceCustomers() {
+  const q = document.getElementById('inv-customer-search').value.toLowerCase();
+  const matches = q.length < 1 ? customerData.slice(0,10) : customerData.filter(c=>(c.name||'').toLowerCase().includes(q));
+  renderInvoiceCustomerDropdown(matches);
+  showInvoiceCustomerDropdown();
+}
+
+function renderInvoiceCustomerDropdown(customers) {
+  const dd = document.getElementById('inv-customer-dropdown');
+  if (!customers.length) { dd.innerHTML='<div class="town-option" style="color:var(--muted)">No customers found</div>'; return; }
+  dd.innerHTML = customers.map(c=>
+    '<div class="town-option" onmousedown="selectInvoiceCustomer('+c.id+')">'+
+      h(c.name)+(c.phone?' <span style="color:var(--muted);font-size:0.62rem">'+h(c.phone)+'</span>':'')+
+    '</div>'
+  ).join('');
+}
+
+function showInvoiceCustomerDropdown() {
+  const dd = document.getElementById('inv-customer-dropdown');
+  filterInvoiceCustomers();
+  dd.style.display = 'block';
+}
+
+function hideInvoiceCustomerDropdown() {
+  document.getElementById('inv-customer-dropdown').style.display = 'none';
+}
+
+function selectInvoiceCustomer(id) {
+  const c = customerData.find(x=>x.id==id); if(!c) return;
+  selectedInvoiceCustomer = c;
+  document.getElementById('inv-customer-search').value = c.name;
+  document.getElementById('inv-email').value = c.email||'';
+  document.getElementById('inv-phone').value = c.phone||'';
+  hideInvoiceCustomerDropdown();
+  // Auto-populate line items from customer's services if none added
+  const items = getLineItems();
+  if (items.length === 0 || (items.length===1 && !items[0].desc)) {
+    document.getElementById('inv-line-items').innerHTML = '';
+    addLineItem();
+  }
+}
+
+async function saveInvoiceDraft() {
+  await saveInvoice('Draft');
+}
+
+async function saveAndSendInvoice() {
+  await saveInvoice('Sent');
+}
+
+async function saveInvoice(status) {
+  const items = getLineItems();
+  if (!items.length) { alert('Add at least one line item.'); return; }
+  if (!selectedInvoiceCustomer && !document.getElementById('inv-customer-search').value.trim()) {
+    alert('Please select a customer.'); return;
+  }
+  const type = document.getElementById('inv-type').value;
+  const subtotal = items.reduce((s,i)=>s+i.amount,0);
+  const depositPct = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
+  const totalDue = type==='deposit' ? subtotal*(depositPct/100) : subtotal;
+  const num = editingInvoiceId ? invoiceData.find(x=>x.id==editingInvoiceId)?.number : getNextInvoiceNumber();
+  const inv = {
+    id:              editingInvoiceId || Date.now(),
+    number:          num,
+    status,
+    customerId:      selectedInvoiceCustomer?.id || '',
+    customerName:    selectedInvoiceCustomer?.name || document.getElementById('inv-customer-search').value.trim(),
+    customerEmail:   document.getElementById('inv-email').value,
+    customerPhone:   document.getElementById('inv-phone').value,
+    customerAddress: selectedInvoiceCustomer?.address || '',
+    lineItems:       items,
+    subtotal,
+    depositPercent:  type==='deposit' ? depositPct : 0,
+    depositAmount:   type==='deposit' ? totalDue : 0,
+    totalDue,
+    notes:           document.getElementById('inv-notes').value,
+    paymentMethods:  getCheckedServices('modal-create-invoice').join(',') || document.querySelectorAll('#modal-create-invoice .svc-chip.checked') ? [...document.querySelectorAll('#modal-create-invoice .svc-chip.checked')].map(c=>c.dataset.value).join(',') : '',
+    createdDate:     new Date().toISOString().split('T')[0],
+    dueDate:         document.getElementById('inv-due-date').value,
+    sentDate:        status==='Sent' ? new Date().toISOString().split('T')[0] : '',
+    signedDate:      '',
+    signatureName:   '',
+    signatureData:   '',
+    paidDate:        '',
+    type,
+  };
+  if (editingInvoiceId) {
+    const i = invoiceData.findIndex(x=>x.id==editingInvoiceId);
+    if(i!==-1) invoiceData[i]=inv;
+  } else {
+    invoiceData.unshift(inv);
+  }
+  await syncSheet('invoices');
+  closeModal('create-invoice');
+  if (status==='Sent') showInvoiceLink(inv);
+  renderInvoices();
+}
+
+function showInvoiceLink(inv) {
+  const baseUrl = window.location.origin + window.location.pathname.replace('dashboard.html','');
+  const link = baseUrl + 'invoice.html?id=' + inv.id + '&sheet=' + SHEET_ID;
+  const emailSubject = 'Invoice #' + inv.number + ' from Hydro Pressure Washing';
+  const emailBody = 'Hi ' + inv.customerName + ',\n\nPlease find your invoice below. You can view and sign it at the link below:\n\n' + link + '\n\nTotal Due: ' + fmt(inv.totalDue) + '\nDue Date: ' + inv.dueDate + '\n\nThank you for choosing Hydro Pressure Washing!\n\n' + BUSINESS.name + '\n' + BUSINESS.phone;
+  document.getElementById('invoice-preview-content').innerHTML =
+    '<div style="background:var(--surface2);border-radius:10px;padding:16px 20px;margin-bottom:16px">'+
+      '<div style="font-size:0.62rem;color:var(--muted);letter-spacing:1px;margin-bottom:6px">INVOICE LINK</div>'+
+      '<div style="font-size:0.72rem;color:var(--accent);word-break:break-all;margin-bottom:10px">'+h(link)+'</div>'+
+      '<div style="font-size:0.68rem;color:var(--muted)">Share this link with '+h(inv.customerName)+' via text or email. They can view and sign the invoice on their device.</div>'+
+    '</div>'+
+    '<div style="background:var(--surface2);border-radius:10px;padding:16px 20px">'+
+      '<div style="font-size:0.62rem;color:var(--muted);letter-spacing:1px;margin-bottom:8px">QUICK MESSAGE TO COPY</div>'+
+      '<div style="font-size:0.72rem;color:var(--text);line-height:1.8;white-space:pre-line">'+h('Hi '+inv.customerName+'! Here is your invoice from Hydro Pressure Washing. Total due: '+fmt(inv.totalDue)+'. Please view and sign at: '+link)+'</div>'+
+    '</div>';
+  document.getElementById('modal-invoice-preview').dataset.link = link;
+  document.getElementById('modal-invoice-preview').dataset.emailSubject = emailSubject;
+  document.getElementById('modal-invoice-preview').dataset.emailBody = emailBody;
+  document.getElementById('modal-invoice-preview').dataset.customerEmail = inv.customerEmail;
+  document.getElementById('modal-invoice-preview').classList.add('open');
+}
+
+function copyInvoiceLink() {
+  const link = document.getElementById('modal-invoice-preview').dataset.link;
+  navigator.clipboard.writeText(link).then(()=>setSyncStatus('Link copied!','var(--accent)')).catch(()=>{
+    prompt('Copy this link:', link);
+  });
+}
+
+function openInvoiceEmail() {
+  const el = document.getElementById('modal-invoice-preview');
+  const mailto = 'mailto:'+encodeURIComponent(el.dataset.customerEmail||'')+
+    '?subject='+encodeURIComponent(el.dataset.emailSubject||'')+
+    '&body='+encodeURIComponent(el.dataset.emailBody||'');
+  window.open(mailto);
+}
+
+function renderInvoices() {
+  const total = invoiceData.reduce((s,i)=>s+i.totalDue,0);
+  const paid = invoiceData.filter(i=>i.status==='Paid').reduce((s,i)=>s+i.totalDue,0);
+  const pending = invoiceData.filter(i=>i.status==='Sent'&&!i.paidDate).reduce((s,i)=>s+i.totalDue,0);
+  document.getElementById('invoice-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-label">Total Invoiced</div><div class="stat-val" style="color:var(--accent)">'+fmt(total)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Collected</div><div class="stat-val" style="color:#34d399">'+fmt(paid)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:var(--yellow)">'+fmt(pending)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-val" style="color:var(--purple)">'+invoiceData.length+'</div></div>';
+  const statusPill = {Draft:'pill-purple',Sent:'pill-blue',Signed:'pill-yellow',Paid:'pill-green',Cancelled:'pill-red'};
+  const rows = invoiceData.map(inv=>{
+    const baseUrl = window.location.origin + window.location.pathname.replace('dashboard.html','');
+    const link = baseUrl + 'invoice.html?id='+inv.id+'&sheet='+SHEET_ID;
+    return '<tr>'+
+      '<td style="font-family:var(--font-display);color:var(--accent);letter-spacing:1px">#'+inv.number+'</td>'+
+      '<td>'+h(inv.customerName||'—')+'</td>'+
+      '<td><span class="pill pill-blue" style="font-size:0.6rem">'+h(inv.type||'full')+'</span></td>'+
+      '<td style="color:var(--accent);font-weight:500">'+fmt(inv.totalDue)+'</td>'+
+      '<td><span class="pill '+(statusPill[inv.status]||'pill-blue')+'">'+h(inv.status)+'</span>'+
+        (inv.signedDate?'<span style="font-size:0.6rem;color:#34d399;margin-left:6px">✓ Signed</span>':'')+
+      '</td>'+
+      '<td style="color:var(--muted)">'+h(inv.createdDate||'—')+'</td>'+
+      '<td style="color:var(--muted)">'+h(inv.signedDate||'—')+'</td>'+
+      '<td><div style="display:flex;gap:6px">'+
+        '<button class="btn btn-ghost btn-sm" onclick="showInvoiceLink(invoiceData.find(x=>x.id=='+inv.id+'))">🔗 Link</button>'+
+        '<button class="btn btn-ghost btn-sm" onclick="markInvoicePaid('+inv.id+')" '+(inv.status==='Paid'?'style="opacity:0.4" disabled':'')+'>✓ Paid</button>'+
+        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteInvoice('+inv.id+'))">✕</button>'+
+      '</div></td></tr>';
+  });
+  document.getElementById('invoices-tbody').innerHTML = rows.length ? rows.join('') :
+    '<tr><td colspan="8" style="text-align:center;color:var(--muted);padding:32px">No invoices yet — click + Create Invoice to get started</td></tr>';
+}
+
+async function markInvoicePaid(id) {
+  const inv = invoiceData.find(x=>x.id==id); if(!inv) return;
+  inv.status = 'Paid';
+  inv.paidDate = new Date().toISOString().split('T')[0];
+  await syncSheet('invoices');
+  renderInvoices();
+}
+
+async function deleteInvoice(id) {
+  invoiceData = invoiceData.filter(x=>x.id!=id);
+  await syncSheet('invoices');
+  renderInvoices();
+}
+
 // ═══════════════ WEATHER ═══════════════
 const NJ_TOWNS = [
   // Atlantic County
