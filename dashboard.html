@@ -1439,7 +1439,7 @@ async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await identifyUser();
-    const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows,invRows] = await Promise.all([
+    const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
       sheetsGet(SHEETS.income+'!A:Z'),
       sheetsGet(SHEETS.expenses+'!A:Z'),
       sheetsGet(SHEETS.schedule+'!A:Z'),
@@ -1447,8 +1447,10 @@ async function loadAllData() {
       sheetsGet(SHEETS.employees+'!A:Z'),
       sheetsGet(SHEETS.pending+'!A:Z'),
       sheetsGet(SHEETS.notifications+'!A:Z'),
-      sheetsGet(SHEETS.invoices+'!A:Z'),
     ]);
+    // Invoice sheet may not exist yet — fetch separately so it doesn't crash everything
+    let invRows = [];
+    try { invRows = await sheetsGet(SHEETS.invoices+'!A:Z'); } catch(e) { invRows = []; }
     const parse = (rows, headers) =>
       rows.length > 1 ? rows.slice(1).filter(r=>r[0]).map(r=>rowToObj(headers,r)) : [];
 
