@@ -1104,7 +1104,7 @@
 // ═══════════════ CONFIG ═══════════════
 const CLIENT_ID   = '1077914957013-5vd6neifr7vqcvu01c12mtdqko4ihfmq.apps.googleusercontent.com';
 const SHEET_ID    = '1YKFPcaNMqzpFNvF_rz8Cxry8DVv2RfhTsvnY4_us0dI';
-const SCOPES = 'https://www.googleapis.com/auth/spreadsheets openid email profile';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications', invoices:'Invoices' };
@@ -1206,14 +1206,39 @@ function loadPreviewData() {
   renderHomeStats();
 }
 
+let googleCredential = null; // stores the ID token credential from google.accounts.id
+
 function initGoogleAuth() {
   try {
+    // Initialize ID-based sign-in to get email without sensitive scopes
+    google.accounts.id.initialize({
+      client_id: CLIENT_ID,
+      callback: (credResp) => {
+        // Decode the JWT credential to get email and name
+        if (credResp.credential) {
+          googleCredential = credResp.credential;
+          const parts = credResp.credential.split('.');
+          if (parts.length === 3) {
+            try {
+              const payload = JSON.parse(atob(parts[1].replace(/-/g,'+').replace(/_/g,'/')));
+              currentUser.email   = (payload.email||'').toLowerCase().trim();
+              currentUser.name    = payload.name || payload.email || '';
+              currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
+              sessionStorage.setItem('userEmail', currentUser.email);
+              sessionStorage.setItem('userName',  currentUser.name);
+            } catch(e) {}
+          }
+        }
+      },
+      auto_select: true,
+    });
+
+    // Initialize token client for Sheets access (spreadsheets scope only — no warning)
     tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CLIENT_ID,
       scope: SCOPES,
       callback: (resp) => {
         if (resp.error) {
-          // If error is interaction_required, show sign-in button
           if (resp.error === 'interaction_required' || resp.error === 'access_denied') {
             sessionStorage.removeItem('gtoken');
             showLoginBtn();
@@ -1225,7 +1250,6 @@ function initGoogleAuth() {
         const expiry = Date.now() + 50 * 60 * 1000;
         sessionStorage.setItem('gtokenExpiry', String(expiry));
         scheduleTokenRefresh(50 * 60 * 1000);
-        // Always identify user fresh from Google before loading anything
         identifyUser().then(() => {
           if (currentUser.isAdmin) blockSetupModal();
           checkEmployeeStatus();
@@ -1267,7 +1291,16 @@ function checkCachedTokenExpiry() {
 function signIn() {
   document.getElementById('sign-in-error').style.display = 'none';
   document.getElementById('login-status').textContent = 'Opening Google sign-in...';
-  tokenClient.requestAccessToken({ prompt: 'consent' });
+  // First get user identity via ID token (no sensitive scopes)
+  // then request spreadsheets access token
+  try {
+    google.accounts.id.prompt((notification) => {
+      // Whether or not the prompt shows, request the access token
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    });
+  } catch(e) {
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+  }
 }
 
 function signOut() {
@@ -1333,8 +1366,18 @@ async function identifyUser() {
     currentUser = { email: ADMIN_EMAIL, name: 'James Freeman', isAdmin: true };
     return;
   }
-
-  // Try userinfo endpoint — should work now that we have openid+email+profile scope
+  // Use cached email from sessionStorage (set during sign-in via ID token decode)
+  // No API call needed — avoids sensitive scopes and the Google warning screen
+  const cached = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
+  if (cached) {
+    currentUser.email   = cached;
+    currentUser.name    = sessionStorage.getItem('userName') || '';
+    currentUser.isAdmin = cached === ADMIN_EMAIL.toLowerCase();
+    if (currentUser.isAdmin) blockSetupModal();
+    setNavForRole();
+    return;
+  }
+  // Fallback: try userinfo if we somehow have a token but no cached email
   try {
     const r = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
       headers: { Authorization: 'Bearer ' + accessToken }
@@ -1342,20 +1385,14 @@ async function identifyUser() {
     if (r.ok) {
       const info = await r.json();
       currentUser.email   = (info.email || '').toLowerCase().trim();
-      currentUser.name    = info.name || info.email || '';
+      currentUser.name    = info.name || '';
       currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
       sessionStorage.setItem('userEmail', currentUser.email);
       sessionStorage.setItem('userName',  currentUser.name);
       if (currentUser.isAdmin) blockSetupModal();
-      return;
+      setNavForRole();
     }
   } catch(e) {}
-
-  // Fallback: use cached sessionStorage values
-  currentUser.email   = (sessionStorage.getItem('userEmail') || '').toLowerCase().trim();
-  currentUser.name    = sessionStorage.getItem('userName') || '';
-  currentUser.isAdmin = currentUser.email === ADMIN_EMAIL.toLowerCase();
-  if (currentUser.isAdmin) blockSetupModal();
 }
 
 // ═══════════════ SHEETS API (via Cloudflare Worker — append-only) ═══════════════
