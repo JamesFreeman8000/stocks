@@ -314,25 +314,29 @@
     <button class="nav-btn active" onclick="showTab('home')" id="nav-home">
       <span class="nav-icon">🏠</span> Home
     </button>
-    <button class="nav-btn" onclick="showTab('income')" id="nav-income">
-      <span class="nav-icon">💰</span> Income / Jobs
-    </button>
-    <button class="nav-btn" onclick="showTab('expenses')" id="nav-expenses">
-      <span class="nav-icon">🧾</span> Expenses
-    </button>
     <button class="nav-btn" onclick="showTab('schedule')" id="nav-schedule">
       <span class="nav-icon">📅</span> Schedule
     </button>
     <button class="nav-btn" onclick="showTab('customers')" id="nav-customers">
       <span class="nav-icon">👥</span> Customers
     </button>
-    <button class="nav-btn" onclick="showTab('reports')" id="nav-reports">
-      <span class="nav-icon">📊</span> Reports
+    <button class="nav-btn" onclick="showTab('income')" id="nav-income">
+      <span class="nav-icon">💰</span> Income / Jobs
     </button>
+    <button class="nav-btn" onclick="showTab('expenses')" id="nav-expenses">
+      <span class="nav-icon">💸</span> Expenses
+    </button>
+    <button class="nav-btn" id="nav-myprofile" onclick="showTab('myprofile')" style="display:none">
+      <span class="nav-icon">👤</span> My Profile
+    </button>
+    <div id="nav-admin-divider" style="display:none;font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:12px 18px 4px;margin-top:4px;border-top:1px solid var(--border)">Admin</div>
     <button class="nav-btn" onclick="showTab('invoices')" id="nav-invoices">
       <span class="nav-icon">🧾</span> Invoices
     </button>
-    <button class="nav-btn" onclick="showTab('employees')" id="nav-employees">
+    <button class="nav-btn" onclick="showTab('reports')" id="nav-reports">
+      <span class="nav-icon">📊</span> Reports
+    </button>
+    <button class="nav-btn" id="nav-employees" onclick="showTab('employees')" style="display:none">
       <span class="nav-icon">👷</span> Employees
     </button>
     <button class="nav-btn" onclick="showTab('pending')" id="nav-pending">
@@ -444,7 +448,6 @@
           <th onclick="sortTable('income','customer')">Customer ↕</th>
           <th onclick="sortTable('income','service')">Service ↕</th>
           <th onclick="sortTable('income','amount')">Amount ↕</th>
-          <th onclick="sortTable('income','tips')">Tips ↕</th>
           <th onclick="sortTable('income','status')">Status ↕</th>
           <th onclick="sortTable('income','mileage')">Miles ↕</th>
           <th>Employee(s)</th>
@@ -565,6 +568,11 @@
         <tbody id="invoices-tbody"></tbody>
       </table>
     </div>
+  </div>
+
+  <!-- ═══════════════ MY PROFILE ═══════════════ -->
+  <div class="tab-content" id="tab-myprofile">
+    <div id="myprofile-content"></div>
   </div>
 
   <!-- ═══════════════ EMPLOYEES ═══════════════ -->
@@ -1100,7 +1108,7 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets openid email profil
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications', invoices:'Invoices' };
-const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type'];
+const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type','createdBy'];
 const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
 const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
 const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy','recurring','recurringDays'];
@@ -1300,13 +1308,24 @@ function showLoginBtn(error) {
 
 function hideLoginScreen() {
   const ls = document.getElementById('login-screen');
-  ls.style.display = 'none'; // completely remove from layout so it can't block clicks
+  ls.style.display = 'none';
   const sd = document.getElementById('sidebar-date');
   if (sd) sd.textContent = new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
   if (currentUser.isAdmin) {
     const m = document.getElementById('modal-employee-setup');
     if (m) m.classList.remove('open');
   }
+  setNavForRole();
+}
+
+function setNavForRole() {
+  const isAdmin = currentUser.isAdmin;
+  const empNav   = document.getElementById('nav-employees');
+  const profNav  = document.getElementById('nav-myprofile');
+  const divider  = document.getElementById('nav-admin-divider');
+  if (empNav)  empNav.style.display  = isAdmin ? 'flex' : 'none';
+  if (profNav) profNav.style.display = isAdmin ? 'none' : 'flex';
+  if (divider) divider.style.display = isAdmin ? 'block' : 'none';
 }
 
 async function identifyUser() {
@@ -1444,6 +1463,7 @@ async function loadAllData() {
   setSyncStatus('Loading...','var(--yellow)');
   try {
     await identifyUser();
+    setNavForRole();
     const [incRows,expRows,schRows,cusRows,empRows,penRows,notifRows] = await Promise.all([
       sheetsGet(SHEETS.income+'!A:Z'),
       sheetsGet(SHEETS.expenses+'!A:Z'),
@@ -2065,10 +2085,9 @@ function openEmployeeProfile(gmail) {
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.getElementById('employee-profile-page').style.display = 'block';
   document.getElementById('topbar-title').textContent = (e.name||e.gmail).toUpperCase();
-  // Header
-  const totalRevByEmp = {};
+  document.getElementById('emp-profile-header').dataset.gmail = gmail; // store for tip edit refresh
   const jobsForEmp = incomeData.filter(job => (job.employeeEmails||[]).includes(e.gmail));
-  const split = jobsForEmp.reduce((s,job) => s + (job.amount+job.tips)/Math.max((job.employeeEmails||[]).length,1), 0);
+  const split = jobsForEmp.reduce((s,job) => s + (job.amount+(job.tips||0))/Math.max((job.employeeEmails||[]).length,1), 0);
   const totalExp = expenseData.filter(x=>x.employeeEmail===e.gmail).reduce((s,x)=>s+x.amount,0);
   document.getElementById('emp-profile-header').innerHTML =
     '<div class="profile-header">'+
@@ -2083,23 +2102,31 @@ function openEmployeeProfile(gmail) {
         '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">'+
           '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Jobs</div><div class="stat-val" style="color:var(--accent2);font-size:1.4rem">'+jobsForEmp.length+'</div></div>'+
           '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Revenue (split)</div><div class="stat-val" style="color:var(--accent);font-size:1.4rem">'+fmt(split)+'</div></div>'+
-          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Expenses</div><div class="stat-val" style="color:var(--red);font-size:1.4rem">'+fmt(totalExp)+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow);font-size:1.4rem">'+fmt(jobsForEmp.reduce((s,j)=>s+(j.tips||0),0))+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Expenses</div><div class="stat-val" style="color:var(--red);font-size:1.4rem">'+fmt(totalExp)+'</div></div>';
         '</div>'+
       '</div>'+
     '</div>';
-  // Jobs
+  // Jobs — with tip editing for own profile or admin viewing
   const sPill = {Completed:'pill-green',Pending:'pill-yellow',Cancelled:'pill-red'};
+  const canEditTips = currentUser.isAdmin || e.gmail === currentUser.email;
   document.getElementById('emp-jobs-tbody').innerHTML = jobsForEmp.length ?
     jobsForEmp.sort((a,b)=>b.date.localeCompare(a.date)).map(job=>{
       const empCount = Math.max((job.employeeEmails||[]).length, 1);
-      const credit = (job.amount+job.tips)/empCount;
+      const credit = (job.amount+(job.tips||0))/empCount;
       const svcs = Array.isArray(job.services) ? job.services.join(', ') : (job.service||'—');
+      const tipCell = canEditTips
+        ? '<td><div style="display:flex;align-items:center;gap:6px">'+
+            '<span style="color:var(--yellow)">'+fmt(job.tips||0)+'</span>'+
+            '<button class="btn btn-ghost btn-sm" style="font-size:0.6rem;padding:3px 8px" onclick="editJobTip('+job.id+')">✎</button>'+
+          '</div></td>'
+        : '<td style="color:var(--yellow)">'+fmt(job.tips||0)+'</td>';
       return '<tr>'+
         '<td style="color:var(--muted)">'+h(job.date)+'</td>'+
         '<td>'+h(job.customer||'—')+'</td>'+
         '<td>'+h(svcs)+'</td>'+
         '<td style="color:var(--accent)">+'+fmt(job.amount)+'</td>'+
-        '<td style="color:var(--yellow)">'+fmt(job.tips)+'</td>'+
+        tipCell+
         '<td style="color:#34d399">'+fmt(credit)+(empCount>1?' (÷'+empCount+')':'')+'</td>'+
         '<td><span class="pill '+(sPill[job.status]||'pill-blue')+'">'+h(job.status)+'</span></td>'+
       '</tr>';
@@ -2217,7 +2244,7 @@ function showTab(tab) {
   document.getElementById('tab-' + tab).classList.add('active');
   const nb = document.getElementById('nav-' + tab);
   if (nb) nb.classList.add('active');
-  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS',employees:'EMPLOYEES',pending:'PENDING APPROVAL',invoices:'INVOICES'};
+  const titles = {home:'HOME',income:'INCOME / JOBS',expenses:'EXPENSES',schedule:'SCHEDULE',customers:'CUSTOMERS',reports:'REPORTS',employees:'EMPLOYEES',pending:'PENDING APPROVAL',invoices:'INVOICES',myprofile:'MY PROFILE'};
   document.getElementById('topbar-title').textContent = titles[tab] || tab.toUpperCase();
   closeSidebar();
   if (tab==='income')    renderIncome();
@@ -2229,6 +2256,7 @@ function showTab(tab) {
   if (tab==='employees') renderEmployees();
   if (tab==='pending')   renderPending();
   if (tab==='invoices')  renderInvoices();
+  if (tab==='myprofile') renderMyProfile();
 }
 
 // ═══════════════ MODALS ═══════════════
@@ -2420,11 +2448,9 @@ function renderIncome() {
     (r.notes||'').toLowerCase().includes(q)
   ) : incomeData;
   const totalIncome = incomeData.reduce((s,r)=>s+r.amount,0);
-  const totalTips   = incomeData.reduce((s,r)=>s+r.tips,0);
   const totalMiles  = incomeData.reduce((s,r)=>s+r.mileage,0);
   document.getElementById('income-stats').innerHTML =
     '<div class="stat-card"><div class="stat-label">Total Income</div><div class="stat-val" style="color:var(--accent)">'+fmt(totalIncome)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Total Tips</div><div class="stat-val" style="color:var(--yellow)">'+fmt(totalTips)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Jobs Logged</div><div class="stat-val" style="color:var(--purple)">'+incomeData.length+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Total Miles</div><div class="stat-val" style="color:var(--accent2)">'+totalMiles+' mi</div></div>';
   const sPill = {Completed:'pill-green',Pending:'pill-yellow',Cancelled:'pill-red'};
@@ -2440,7 +2466,6 @@ function renderIncome() {
       '<td>'+name+'</td>'+
       '<td style="max-width:200px">'+svcPills+'</td>'+
       '<td style="color:var(--accent);font-weight:500">+'+fmt(r.amount)+'</td>'+
-      '<td style="color:var(--yellow)">'+(r.tips?fmt(r.tips):'—')+'</td>'+
       '<td><span class="pill '+(sPill[r.status]||'pill-blue')+'">'+h(r.status)+'</span></td>'+
       '<td style="color:var(--purple)">'+(r.mileage?r.mileage+' mi':'—')+'</td>'+
       '<td style="font-size:0.68rem;color:var(--text)">'+h(empNames)+' '+assignBtn+'</td>'+
@@ -2452,7 +2477,7 @@ function renderIncome() {
       '</div></td></tr>';
   });
   document.getElementById('income-tbody').innerHTML = rows.length ? rows.join('') :
-    '<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No jobs match your search':'No jobs yet')+'</td></tr>';
+    '<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:32px">'+(q?'No jobs match your search':'No jobs yet')+'</td></tr>';
 }
 
 // ═══════════════ EXPENSES ═══════════════
@@ -2842,6 +2867,7 @@ function renderCalendar() {
     if (currentUser.isAdmin) {
       actionBtns =
         '<button class="btn btn-ghost btn-sm" onclick="editEvent(\''+r.id+'\')">✎ Edit</button>'+
+        '<button class="btn btn-ghost btn-sm" style="border-color:var(--yellow);color:var(--yellow)" onclick="openInvoiceFromEvent(\''+r.id+'\')">🧾 Invoice</button>'+
         '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteEvent(\''+r.id+'\'))">✕</button>';
     } else {
       const isOwn = (r.employeeEmails||[]).includes(currentUser.email) || r.createdBy === currentUser.email;
@@ -3090,20 +3116,17 @@ function changeReportYear(dir){ reportYear+=dir; renderReportYearView(); }
 
 function renderReports(){
   const totInc=incomeData.reduce((s,r)=>s+r.amount,0);
-  const totTips=incomeData.reduce((s,r)=>s+r.tips,0);
   const totExp=expenseData.reduce((s,r)=>s+r.amount,0);
-  const net=totInc+totTips-totExp;
+  const net=totInc-totExp;
   const totMi=incomeData.reduce((s,r)=>s+r.mileage,0);
   document.getElementById('reports-stats').innerHTML=
     '<div class="stat-card"><div class="stat-label">Job Income</div><div class="stat-val" style="color:var(--accent)">'+fmt(totInc)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow)">'+fmt(totTips)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-val" style="color:#34d399">'+fmt(totInc+totTips)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Total Expenses</div><div class="stat-val" style="color:var(--red)">'+fmt(totExp)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Net Profit</div><div class="stat-val" style="color:'+(net>=0?'var(--accent)':'var(--red)')+'">'+fmt(net)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Total Mileage</div><div class="stat-val" style="color:var(--purple)">'+totMi+' mi</div></div>';
   const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const monthly=Array(12).fill(0);
-  incomeData.forEach(r=>{const m=new Date(r.date).getMonth();if(!isNaN(m))monthly[m]+=r.amount+r.tips;});
+  incomeData.forEach(r=>{const m=new Date(r.date).getMonth();if(!isNaN(m))monthly[m]+=r.amount;});
   const maxM=Math.max(...monthly,1);
   document.getElementById('income-chart').innerHTML=MO.map((m,i)=>
     '<div class="bar-group">'+
@@ -3127,7 +3150,7 @@ function renderReports(){
   ).join('')||'<div style="color:var(--muted);font-size:0.7rem">No expenses yet</div>';
   const now=new Date();
   const last6=Array.from({length:6},(_,i)=>{const d=new Date(now.getFullYear(),now.getMonth()-5+i,1);return{label:MO[d.getMonth()],month:d.getMonth(),year:d.getFullYear()};});
-  const inc6=last6.map(({month,year})=>incomeData.filter(r=>{const d=new Date(r.date);return d.getMonth()===month&&d.getFullYear()===year;}).reduce((s,r)=>s+r.amount+r.tips,0));
+  const inc6=last6.map(({month,year})=>incomeData.filter(r=>{const d=new Date(r.date);return d.getMonth()===month&&d.getFullYear()===year;}).reduce((s,r)=>s+r.amount,0));
   const exp6=last6.map(({month,year})=>expenseData.filter(r=>{const d=new Date(r.date);return d.getMonth()===month&&d.getFullYear()===year;}).reduce((s,r)=>s+r.amount,0));
   const max6=Math.max(...inc6,...exp6,1);
   document.getElementById('compare-chart').innerHTML=last6.map((m,i)=>
@@ -3176,12 +3199,11 @@ function renderReportYearView(){
   document.getElementById('report-months-grid').innerHTML=MONTHS.map((name,mi)=>{
     const mInc=incomeData.filter(r=>{const d=new Date(r.date);return d.getFullYear()===reportYear&&d.getMonth()===mi;});
     const mExp=expenseData.filter(r=>{const d=new Date(r.date);return d.getFullYear()===reportYear&&d.getMonth()===mi;});
-    const income=mInc.reduce((s,r)=>s+r.amount,0),tips=mInc.reduce((s,r)=>s+r.tips,0),miles=mInc.reduce((s,r)=>s+r.mileage,0),exp=mExp.reduce((s,r)=>s+r.amount,0),net=income+tips-exp,jobs=mInc.filter(r=>r.status==='Completed').length,hasData=income>0||tips>0||exp>0;
+    const income=mInc.reduce((s,r)=>s+r.amount,0),miles=mInc.reduce((s,r)=>s+r.mileage,0),exp=mExp.reduce((s,r)=>s+r.amount,0),net=income-exp,jobs=mInc.filter(r=>r.status==='Completed').length,hasData=income>0||exp>0;
     const topColor=net>0?'var(--accent)':net<0?'var(--red)':'var(--border)';
     const statsGrid=hasData?
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px">'+
         '<div><div style="font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Income</div><div style="font-size:0.88rem;color:var(--accent);font-weight:500">'+fmt(income)+'</div></div>'+
-        '<div><div style="font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Tips</div><div style="font-size:0.88rem;color:var(--yellow);font-weight:500">'+fmt(tips)+'</div></div>'+
         '<div><div style="font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Expenses</div><div style="font-size:0.88rem;color:var(--red);font-weight:500">'+fmt(exp)+'</div></div>'+
         '<div><div style="font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Net Profit</div><div style="font-size:0.88rem;color:'+(net>=0?'#34d399':'var(--red)')+';font-weight:500">'+fmt(net)+'</div></div>'+
         '<div><div style="font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:2px">Miles</div><div style="font-size:0.88rem;color:var(--purple);font-weight:500">'+miles+' mi</div></div>'+
@@ -3202,10 +3224,9 @@ function openMonthDrilldown(month,year){
   document.getElementById('report-day-panel').style.display='none';
   const mInc=incomeData.filter(r=>{const d=new Date(r.date);return d.getFullYear()===year&&d.getMonth()===month;});
   const mExp=expenseData.filter(r=>{const d=new Date(r.date);return d.getFullYear()===year&&d.getMonth()===month;});
-  const income=mInc.reduce((s,r)=>s+r.amount,0),tips=mInc.reduce((s,r)=>s+r.tips,0),miles=mInc.reduce((s,r)=>s+r.mileage,0),exp=mExp.reduce((s,r)=>s+r.amount,0),net=income+tips-exp,jobs=mInc.filter(r=>r.status==='Completed').length;
+  const income=mInc.reduce((s,r)=>s+r.amount,0),miles=mInc.reduce((s,r)=>s+r.mileage,0),exp=mExp.reduce((s,r)=>s+r.amount,0),net=income-exp,jobs=mInc.filter(r=>r.status==='Completed').length;
   document.getElementById('report-month-stats').innerHTML=
     '<div class="stat-card" style="min-width:110px;padding:14px 18px"><div class="stat-label">Income</div><div class="stat-val" style="color:var(--accent);font-size:1.4rem">'+fmt(income)+'</div></div>'+
-    '<div class="stat-card" style="min-width:110px;padding:14px 18px"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow);font-size:1.4rem">'+fmt(tips)+'</div></div>'+
     '<div class="stat-card" style="min-width:110px;padding:14px 18px"><div class="stat-label">Expenses</div><div class="stat-val" style="color:var(--red);font-size:1.4rem">'+fmt(exp)+'</div></div>'+
     '<div class="stat-card" style="min-width:110px;padding:14px 18px"><div class="stat-label">Net Profit</div><div class="stat-val" style="color:'+(net>=0?'var(--accent)':'var(--red)')+';font-size:1.4rem">'+fmt(net)+'</div></div>'+
     '<div class="stat-card" style="min-width:110px;padding:14px 18px"><div class="stat-label">Miles</div><div class="stat-val" style="color:var(--purple);font-size:1.4rem">'+miles+' mi</div></div>'+
@@ -3216,7 +3237,7 @@ function openMonthDrilldown(month,year){
   for(let d=1;d<=dim;d++){
     const ds=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
     const isToday=d===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
-    const dayI=incomeData.filter(r=>r.date===ds).reduce((s,r)=>s+r.amount+r.tips,0);
+    const dayI=incomeData.filter(r=>r.date===ds).reduce((s,r)=>s+r.amount,0);
     const dayE=expenseData.filter(r=>r.date===ds).reduce((s,r)=>s+r.amount,0);
     const hasData=dayI>0||dayE>0,net=dayI-dayE;
     cells+='<div class="cal-cell'+(isToday?' today':'')+'" style="min-height:75px;cursor:'+(hasData?'pointer':'default')+'"'+(hasData?' onclick="showDayReport(\''+ds+'\')"':'')+'>'+
@@ -3260,13 +3281,11 @@ function showDayReport(dateStr){
 // ═══════════════ HOME STATS ═══════════════
 function renderHomeStats(){
   const jobInc=incomeData.reduce((s,r)=>s+r.amount,0);
-  const tips=incomeData.reduce((s,r)=>s+r.tips,0);
   const exp=expenseData.reduce((s,r)=>s+r.amount,0);
-  const net=jobInc+tips-exp;
+  const net=jobInc-exp;
   const upcoming=scheduleData.filter(e=>e.date>=new Date().toISOString().split('T')[0]).length;
   document.getElementById('home-stats').innerHTML=
     '<div class="stat-card"><div class="stat-label">Job Income</div><div class="stat-val" style="color:var(--accent)">'+fmt(jobInc)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow)">'+fmt(tips)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Total Expenses</div><div class="stat-val" style="color:var(--red)">'+fmt(exp)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Net Profit</div><div class="stat-val" style="color:'+(net>=0?'var(--accent)':'var(--red)')+'">'+fmt(net)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Upcoming Jobs</div><div class="stat-val" style="color:var(--accent2)">'+upcoming+'</div></div>'+
@@ -3420,6 +3439,59 @@ function selectInvoiceCustomer(id) {
   }
 }
 
+function openInvoiceFromEvent(eventId) {
+  const ev = scheduleData.find(e => e.id == eventId);
+  if (!ev) return;
+
+  // Close any open modals first
+  document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+
+  // Reset invoice modal
+  editingInvoiceId = null;
+  selectedInvoiceCustomer = null;
+  document.getElementById('invoice-modal-title').textContent = 'CREATE INVOICE';
+  document.getElementById('inv-type').value = 'full';
+  document.getElementById('inv-deposit-group').style.display = 'none';
+  document.getElementById('inv-job-group').style.display = 'none';
+  document.getElementById('inv-notes').value = 'Payment due within 14 days. Thank you for your business!';
+
+  // Set due date 14 days from event date
+  const base = ev.date ? new Date(ev.date+'T12:00:00') : new Date();
+  base.setDate(base.getDate() + 14);
+  document.getElementById('inv-due-date').value = base.toISOString().split('T')[0];
+
+  // Pre-fill customer info from event
+  const customerName = ev.customer || '';
+  document.getElementById('inv-customer-search').value = customerName;
+  document.getElementById('inv-phone').value = ev.phone || '';
+  document.getElementById('inv-email').value = ev.email || '';
+
+  // Try to match existing customer for email/phone lookup
+  const matched = customerData.find(c => c.name.toLowerCase() === customerName.toLowerCase());
+  if (matched) {
+    selectedInvoiceCustomer = matched;
+    if (!ev.phone) document.getElementById('inv-phone').value = matched.phone || '';
+    if (!ev.email) document.getElementById('inv-email').value = matched.email || '';
+  }
+
+  // Pre-fill line items from services
+  document.getElementById('inv-line-items').innerHTML = '';
+  const services = Array.isArray(ev.services) ? ev.services : [];
+  if (services.length) {
+    services.forEach(s => addLineItem(s, ''));
+  } else {
+    addLineItem('', '');
+  }
+
+  // Reset payment method chips
+  document.querySelectorAll('#modal-create-invoice .svc-chip').forEach(c => c.classList.remove('checked'));
+  const cashApp = document.querySelector('#modal-create-invoice .svc-chip[data-value="CashApp"]');
+  if (cashApp) cashApp.classList.add('checked');
+
+  recalcInvoice();
+  document.getElementById('modal-create-invoice').classList.add('open');
+}
+
 async function saveInvoiceDraft() {
   await saveInvoice('Draft');
 }
@@ -3435,9 +3507,11 @@ async function saveInvoice(status) {
     alert('Please select a customer.'); return;
   }
   const type = document.getElementById('inv-type').value;
-  const subtotal = items.reduce((s,i)=>s+i.amount,0);
-  const depositPct = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
-  const totalDue = type==='deposit' ? subtotal*(depositPct/100) : subtotal;
+  const round2 = n => Math.round(n * 100) / 100;
+  const subtotal    = round2(items.reduce((s,i)=>s+i.amount,0));
+  const depositPct  = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
+  const totalDue    = round2(type==='deposit' ? subtotal*(depositPct/100) : subtotal);
+  const depositAmt  = round2(type==='deposit' ? totalDue : 0);
   const num = editingInvoiceId ? invoiceData.find(x=>x.id==editingInvoiceId)?.number : getNextInvoiceNumber();
   const inv = {
     id:              editingInvoiceId || Date.now(),
@@ -3451,7 +3525,7 @@ async function saveInvoice(status) {
     lineItems:       items,
     subtotal,
     depositPercent:  type==='deposit' ? depositPct : 0,
-    depositAmount:   type==='deposit' ? totalDue : 0,
+    depositAmount:   depositAmt,
     totalDue,
     notes:           document.getElementById('inv-notes').value,
     paymentMethods:  getCheckedServices('modal-create-invoice').join(',') || document.querySelectorAll('#modal-create-invoice .svc-chip.checked') ? [...document.querySelectorAll('#modal-create-invoice .svc-chip.checked')].map(c=>c.dataset.value).join(',') : '',
@@ -3463,6 +3537,7 @@ async function saveInvoice(status) {
     signatureData:   '',
     paidDate:        '',
     type,
+    createdBy:       currentUser.email,
   };
   if (editingInvoiceId) {
     const i = invoiceData.findIndex(x=>x.id==editingInvoiceId);
@@ -3514,16 +3589,21 @@ function openInvoiceEmail() {
 }
 
 function renderInvoices() {
-  const total = invoiceData.reduce((s,i)=>s+i.totalDue,0);
-  const paid = invoiceData.filter(i=>i.status==='Paid').reduce((s,i)=>s+i.totalDue,0);
-  const pending = invoiceData.filter(i=>i.status==='Sent'&&!i.paidDate).reduce((s,i)=>s+i.totalDue,0);
+  // Employees only see their own invoices
+  const visible = currentUser.isAdmin
+    ? invoiceData
+    : invoiceData.filter(i => i.createdBy === currentUser.email);
+  const round2 = n => Math.round(n * 100) / 100;
+  const total   = round2(visible.reduce((s,i)=>s+(parseFloat(i.totalDue)||0),0));
+  const paid    = round2(visible.filter(i=>i.status==='Paid').reduce((s,i)=>s+(parseFloat(i.totalDue)||0),0));
+  const pending = round2(visible.filter(i=>i.status==='Sent'&&!i.paidDate).reduce((s,i)=>s+(parseFloat(i.totalDue)||0),0));
   document.getElementById('invoice-stats').innerHTML =
     '<div class="stat-card"><div class="stat-label">Total Invoiced</div><div class="stat-val" style="color:var(--accent)">'+fmt(total)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Collected</div><div class="stat-val" style="color:#34d399">'+fmt(paid)+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Outstanding</div><div class="stat-val" style="color:var(--yellow)">'+fmt(pending)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-val" style="color:var(--purple)">'+invoiceData.length+'</div></div>';
+    '<div class="stat-card"><div class="stat-label">Total Invoices</div><div class="stat-val" style="color:var(--purple)">'+visible.length+'</div></div>';
   const statusPill = {Draft:'pill-purple',Sent:'pill-blue',Signed:'pill-yellow',Paid:'pill-green',Cancelled:'pill-red'};
-  const rows = invoiceData.map(inv=>{
+  const rows = visible.map(inv=>{
     const baseUrl = window.location.origin + window.location.pathname.replace('dashboard.html','');
     const link = baseUrl + 'invoice.html?id='+inv.id+'&sheet='+SHEET_ID;
     return '<tr>'+
@@ -3538,8 +3618,8 @@ function renderInvoices() {
       '<td style="color:var(--muted)">'+h(inv.signedDate||'—')+'</td>'+
       '<td><div style="display:flex;gap:6px">'+
         '<button class="btn btn-ghost btn-sm" onclick="showInvoiceLink(invoiceData.find(x=>x.id=='+inv.id+'))">🔗 Link</button>'+
-        '<button class="btn btn-ghost btn-sm" onclick="markInvoicePaid('+inv.id+')" style="'+(inv.status==='Paid'?'border-color:var(--yellow);color:var(--yellow)':'border-color:#34d399;color:#34d399')+'">'+(inv.status==='Paid'?'↩ Unpaid':'✓ Paid')+'</button>'+
-        '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteInvoice('+inv.id+'))">✕</button>'+
+        (currentUser.isAdmin ? '<button class="btn btn-ghost btn-sm" onclick="markInvoicePaid('+inv.id+')" style="'+(inv.status==='Paid'?'border-color:var(--yellow);color:var(--yellow)':'border-color:#34d399;color:#34d399')+'">'+(inv.status==='Paid'?'↩ Unpaid':'✓ Paid')+'</button>' : '')+
+        (currentUser.isAdmin ? '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteInvoice('+inv.id+'))">✕</button>' : '')+
       '</div></td></tr>';
   });
   document.getElementById('invoices-tbody').innerHTML = rows.length ? rows.join('') :
@@ -3611,6 +3691,108 @@ function selectScheduleCustomer(id) {
 function useNewScheduleCustomer() {
   // Just keep what they typed — saveEvent will create the profile
   hideScheduleCustomerDropdown();
+}
+
+// ═══════════════ TIP EDITING ═══════════════
+async function editJobTip(jobId) {
+  const job = incomeData.find(j => j.id == jobId); if (!job) return;
+  const newTip = prompt('Enter tip amount for this job (current: $'+(job.tips||0)+'):', job.tips||0);
+  if (newTip === null) return; // cancelled
+  const parsed = parseFloat(newTip) || 0;
+  job.tips = Math.round(parsed * 100) / 100;
+  await syncSheet('income');
+  // Re-render whichever profile is showing
+  if (document.getElementById('employee-profile-page').style.display !== 'none') {
+    openEmployeeProfile(document.getElementById('emp-profile-header').dataset.gmail);
+  }
+  if (document.getElementById('tab-myprofile').classList.contains('active')) {
+    renderMyProfile();
+  }
+}
+
+// ═══════════════ MY PROFILE (employee self-view) ═══════════════
+function renderMyProfile() {
+  const email = currentUser.email;
+  const emp = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === email.toLowerCase());
+  if (!emp) {
+    document.getElementById('myprofile-content').innerHTML =
+      '<div style="color:var(--muted);padding:24px">Profile not found. Please contact your admin.</div>';
+    return;
+  }
+  const jobsForEmp = incomeData.filter(j => (j.employeeEmails||[]).includes(email));
+  const totalTips  = jobsForEmp.reduce((s,j)=>s+(j.tips||0),0);
+  const totalRev   = jobsForEmp.reduce((s,j)=>s+(j.amount+(j.tips||0))/Math.max((j.employeeEmails||[]).length,1),0);
+  const totalExp   = expenseData.filter(x=>x.employeeEmail===email).reduce((s,x)=>s+x.amount,0);
+  const sPill      = {Completed:'pill-green',Pending:'pill-yellow',Cancelled:'pill-red'};
+
+  // Mini earnings calendar
+  const now = new Date();
+  const calYear = now.getFullYear(), calMonth = now.getMonth();
+  const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const dim = new Date(calYear, calMonth+1, 0).getDate();
+  const firstDay = new Date(calYear, calMonth, 1).getDay();
+  const earningsByDay = {};
+  jobsForEmp.forEach(j => {
+    if (j.date && j.date.startsWith(calYear+'-'+String(calMonth+1).padStart(2,'0'))) {
+      const d = parseInt(j.date.split('-')[2]);
+      earningsByDay[d] = (earningsByDay[d]||0) + j.amount/Math.max((j.employeeEmails||[]).length,1);
+    }
+  });
+
+  let calCells = DAYS.map(d=>'<div style="text-align:center;font-size:0.55rem;color:var(--muted);padding:4px;letter-spacing:1px">'+d+'</div>').join('');
+  for (let i=0;i<firstDay;i++) calCells += '<div></div>';
+  for (let d=1;d<=dim;d++) {
+    const earned = earningsByDay[d]||0;
+    const isToday = d===now.getDate()&&calMonth===now.getMonth()&&calYear===now.getFullYear();
+    calCells += '<div style="text-align:center;padding:6px 2px;border-radius:6px;border:1px solid '+(isToday?'var(--accent)':'transparent')+';background:'+(earned?'var(--accent)15':'transparent')+'">'+
+      '<div style="font-size:0.65rem;color:'+(isToday?'var(--accent)':'var(--muted)')+'">'+d+'</div>'+
+      (earned?'<div style="font-size:0.55rem;color:var(--accent);font-weight:500">$'+Math.round(earned)+'</div>':'<div style="font-size:0.55rem;color:transparent">—</div>')+
+    '</div>';
+  }
+
+  document.getElementById('myprofile-content').innerHTML =
+    // Header
+    '<div class="profile-header">'+
+      '<div class="profile-avatar-lg" style="background:var(--accent2)22;color:var(--accent2);border:2px solid var(--accent2)40">'+h(emp.name?emp.name[0].toUpperCase():'?')+'</div>'+
+      '<div style="flex:1">'+
+        '<div style="font-family:var(--font-display);font-size:1.6rem;color:#e8edf8;letter-spacing:2px;margin-bottom:6px">'+h(emp.name)+'</div>'+
+        '<div style="font-size:0.72rem;color:var(--muted);line-height:2">'+
+          '✉️ '+h(emp.gmail)+(emp.phone?'<br>📞 '+h(emp.phone):'')+'<br>📅 Since '+h(emp.employmentDate||'—')+
+        '</div>'+
+        '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:14px">'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:100px"><div class="stat-label">Jobs</div><div class="stat-val" style="color:var(--accent2);font-size:1.4rem">'+jobsForEmp.length+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:100px"><div class="stat-label">Revenue Generated</div><div class="stat-val" style="color:var(--accent);font-size:1.4rem">'+fmt(totalRev)+'</div></div>'+
+          '<div class="stat-card" style="padding:12px 18px;min-width:100px"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow);font-size:1.4rem">'+fmt(totalTips)+'</div></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>'+
+    // Calendar
+    '<div class="chart-wrap" style="margin-bottom:20px">'+
+      '<div class="chart-title">'+MO[calMonth]+' '+calYear+' — Revenue Calendar</div>'+
+      '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px">'+calCells+'</div>'+
+    '</div>'+
+    // Job history
+    '<div class="section-head-title" style="margin-bottom:14px">JOB HISTORY</div>'+
+    '<div class="table-wrap"><table>'+
+      '<thead><tr><th>Date</th><th>Customer</th><th>Services</th><th>Amount</th><th>Tips</th><th>Split Credit</th><th>Status</th></tr></thead>'+
+      '<tbody>'+
+      (jobsForEmp.length ? jobsForEmp.sort((a,b)=>b.date.localeCompare(a.date)).map(job=>{
+        const empCount = Math.max((job.employeeEmails||[]).length,1);
+        const credit = (job.amount+(job.tips||0))/empCount;
+        const svcs = Array.isArray(job.services)?job.services.join(', '):(job.service||'—');
+        return '<tr>'+
+          '<td style="color:var(--muted)">'+h(job.date)+'</td>'+
+          '<td>'+h(job.customer||'—')+'</td>'+
+          '<td>'+h(svcs)+'</td>'+
+          '<td style="color:var(--accent)">+'+fmt(job.amount)+'</td>'+
+          '<td><div style="display:flex;align-items:center;gap:6px"><span style="color:var(--yellow)">'+fmt(job.tips||0)+'</span>'+
+            '<button class="btn btn-ghost btn-sm" style="font-size:0.6rem;padding:3px 8px" onclick="editJobTip('+job.id+')">✎</button></div></td>'+
+          '<td style="color:#34d399">'+fmt(credit)+(empCount>1?' (÷'+empCount+')':'')+'</td>'+
+          '<td><span class="pill '+(sPill[job.status]||'pill-blue')+'">'+h(job.status)+'</span></td>'+
+        '</tr>';
+      }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No jobs logged yet</td></tr>')+
+      '</tbody></table></div>';
 }
 
 // ═══════════════ WEATHER ═══════════════
