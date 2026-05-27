@@ -134,7 +134,7 @@
   .cal-grid { display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; }
   .cal-header { display:grid; grid-template-columns:repeat(7, 1fr); gap:2px; margin-bottom:6px; }
   .cal-day-label { text-align:center; font-size:0.58rem; color:var(--muted); letter-spacing:2px; padding:8px 0; text-transform:uppercase; }
-  .cal-cell { background:var(--surface); border:1px solid var(--border); border-radius:6px; min-height:72px; padding:6px; cursor:pointer; transition:border-color 0.15s; }
+  .cal-cell { background:var(--surface); border:1px solid var(--border); border-radius:6px; min-height:52px; padding:4px 6px; cursor:pointer; transition:border-color 0.15s; }
   .cal-cell:hover { border-color:var(--accent); }
   .cal-cell.today { border-color:var(--accent); }
   .cal-date { font-size:0.7rem; font-weight:500; margin-bottom:3px; }
@@ -330,7 +330,7 @@
     <button class="nav-btn" onclick="showTab('invoices')" id="nav-invoices">
       <span class="nav-icon">🧾</span> Invoices
     </button>
-    <button class="nav-btn" onclick="showTab('reports')" id="nav-reports">
+    <button class="nav-btn" onclick="showTab('reports')" id="nav-reports" style="display:none">
       <span class="nav-icon">📊</span> Reports
     </button>
     <button class="nav-btn" id="nav-employees" onclick="showTab('employees')" style="display:none">
@@ -436,7 +436,7 @@
         <div class="home-card-desc">Keep a record of all your clients, contact info, and job history.</div>
         <div class="home-card-arrow">→</div>
       </div>
-      <div class="home-card" onclick="showTab('reports')" style="--card-accent:#34d399">
+      <div class="home-card" id="home-card-reports" onclick="showTab('reports')" style="--card-accent:#34d399;display:none">
         <div class="home-card-icon">📊</div>
         <div class="home-card-title">REPORTS</div>
         <div class="home-card-desc">Visual breakdown of earnings, expenses, and business growth.</div>
@@ -515,19 +515,25 @@
   <!-- ═══════════════ SCHEDULE ═══════════════ -->
   <div class="tab-content" id="tab-schedule">
 
-    <!-- WEATHER WIDGET -->
-    <div id="weather-widget" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px 24px;margin-bottom:24px">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
-        <div style="font-family:var(--font-display);font-size:1rem;color:#e8edf8;letter-spacing:2px">⛅ WEATHER</div>
-        <div style="position:relative;display:flex;gap:8px;align-items:center">
-          <input type="text" id="weather-search" placeholder="Search NJ town..." oninput="filterNJTowns()" onfocus="showTownDropdown()" onblur="setTimeout(hideTownDropdown,200)"
-            style="width:220px;padding:8px 12px;font-size:0.73rem;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);outline:none"/>
-          <div id="town-dropdown" style="display:none;position:absolute;top:38px;left:0;width:220px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px #00000040"></div>
-          <button class="btn btn-accent btn-sm" onclick="fetchWeather()">Search</button>
+    <!-- WEATHER WIDGET (collapsible) -->
+    <div id="weather-widget" style="background:var(--surface);border:1px solid var(--border);border-radius:14px;margin-bottom:16px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding:12px 20px;cursor:pointer" onclick="toggleWeather()">
+        <div style="font-family:var(--font-display);font-size:0.9rem;color:#e8edf8;letter-spacing:2px">⛅ WEATHER</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="weather-summary" style="font-size:0.7rem;color:var(--muted)">Click to expand</span>
+          <span id="weather-toggle-arrow" style="color:var(--muted);font-size:0.75rem">▾</span>
         </div>
       </div>
-      <div id="weather-content" style="margin-top:16px">
-        <div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px">Search a town above to see the forecast</div>
+      <div id="weather-body" style="display:none;padding:0 20px 16px;border-top:1px solid var(--border)">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+          <input type="text" id="weather-search" placeholder="Search NJ town..." oninput="filterNJTowns()" onfocus="showTownDropdown()" onblur="setTimeout(hideTownDropdown,200)"
+            style="width:200px;padding:8px 12px;font-size:0.73rem;border-radius:7px;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:var(--font-mono);outline:none"/>
+          <div id="town-dropdown" style="display:none;position:absolute;width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:100;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px #00000040"></div>
+          <button class="btn btn-accent btn-sm" onclick="fetchWeather()">Search</button>
+        </div>
+        <div id="weather-content" style="margin-top:12px">
+          <div style="font-size:0.7rem;color:var(--muted);letter-spacing:1px">Search a town above to see the forecast</div>
+        </div>
       </div>
     </div>
 
@@ -539,22 +545,34 @@
         <button class="btn btn-accent" onclick="openModal('schedule')">+ Add Event</button>
       </div>
     </div>
-    <div class="cal-header">
-      <div class="cal-day-label">Sun</div><div class="cal-day-label">Mon</div>
-      <div class="cal-day-label">Tue</div><div class="cal-day-label">Wed</div>
-      <div class="cal-day-label">Thu</div><div class="cal-day-label">Fri</div>
-      <div class="cal-day-label">Sat</div>
-    </div>
-    <div class="cal-grid" id="cal-grid"></div>
-    <div style="margin-top:24px">
-      <div class="section-head-title" style="margin-bottom:14px">UPCOMING EVENTS</div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th>Status</th><th></th></tr></thead>
-          <tbody id="schedule-tbody"></tbody>
-        </table>
+
+    <!-- Calendar + Upcoming side by side on wider screens -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start" id="schedule-layout">
+      <div>
+        <div class="cal-header">
+          <div class="cal-day-label">Sun</div><div class="cal-day-label">Mon</div>
+          <div class="cal-day-label">Tue</div><div class="cal-day-label">Wed</div>
+          <div class="cal-day-label">Thu</div><div class="cal-day-label">Fri</div>
+          <div class="cal-day-label">Sat</div>
+        </div>
+        <div class="cal-grid" id="cal-grid"></div>
+      </div>
+      <div>
+        <div class="section-head-title" style="margin-bottom:10px;font-size:0.72rem">UPCOMING EVENTS</div>
+        <div class="table-wrap" style="max-height:420px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+            <tbody id="schedule-tbody"></tbody>
+          </table>
+        </div>
       </div>
     </div>
+
+    <style>
+      @media(max-width:900px) {
+        #schedule-layout { grid-template-columns: 1fr !important; }
+      }
+    </style>
   </div>
 
   <!-- ═══════════════ CUSTOMERS ═══════════════ -->
@@ -1413,11 +1431,15 @@ function hideLoginScreen() {
 function setNavForRole() {
   const isAdmin = currentUser.isAdmin;
   const empNav     = document.getElementById('nav-employees');
+  const repNav     = document.getElementById('nav-reports');
   const divider    = document.getElementById('nav-admin-divider');
   const empCard    = document.getElementById('home-card-employees');
+  const repCard    = document.getElementById('home-card-reports');
   if (empNav)   empNav.style.display   = isAdmin ? 'flex' : 'none';
+  if (repNav)   repNav.style.display   = isAdmin ? 'flex' : 'none';
   if (divider)  divider.style.display  = isAdmin ? 'block' : 'none';
   if (empCard)  empCard.style.display  = isAdmin ? '' : 'none';
+  if (repCard)  repCard.style.display  = isAdmin ? '' : 'none';
 }
 
 async function identifyUser() {
@@ -4096,6 +4118,14 @@ function renderMyProfile() {
         '</tr>';
       }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">No jobs logged yet</td></tr>')+
       '</tbody></table></div>';
+}
+
+function toggleWeather() {
+  const body   = document.getElementById('weather-body');
+  const arrow  = document.getElementById('weather-toggle-arrow');
+  const isOpen = body.style.display !== 'none';
+  body.style.display  = isOpen ? 'none' : 'block';
+  arrow.textContent   = isOpen ? '▾' : '▴';
 }
 
 // ═══════════════ WEATHER ═══════════════
