@@ -326,9 +326,6 @@
     <button class="nav-btn" onclick="showTab('expenses')" id="nav-expenses">
       <span class="nav-icon">💸</span> Expenses
     </button>
-    <button class="nav-btn" id="nav-myprofile" onclick="showTab('myprofile')" style="display:none">
-      <span class="nav-icon">👤</span> My Profile
-    </button>
     <div id="nav-admin-divider" style="display:none;font-size:0.55rem;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding:12px 18px 4px;margin-top:4px;border-top:1px solid var(--border)">Admin</div>
     <button class="nav-btn" onclick="showTab('invoices')" id="nav-invoices">
       <span class="nav-icon">🧾</span> Invoices
@@ -638,7 +635,20 @@
     <button class="btn btn-ghost btn-sm" onclick="closeEmployeeProfile()" style="margin-bottom:20px">← Back to Employees</button>
     <div id="emp-profile-header"></div>
     <div style="margin-top:24px">
-      <div class="section-head-title" style="margin-bottom:14px">JOB HISTORY</div>
+      <div class="section-head" style="margin-bottom:14px">
+        <div class="section-head-title">UPCOMING JOBS</div>
+        <button class="btn btn-accent btn-sm" onclick="openNewEventFromTopbar()">+ New Event</button>
+      </div>
+      <div class="table-wrap" style="margin-bottom:28px"><table>
+        <thead><tr><th>Date</th><th>Time</th><th>Title</th><th>Customer</th><th>Services</th><th>Status</th></tr></thead>
+        <tbody id="emp-schedule-upcoming-tbody"></tbody>
+      </table></div>
+      <div class="section-head-title" style="margin-bottom:14px">PAST SCHEDULED JOBS</div>
+      <div class="table-wrap" style="margin-bottom:28px"><table>
+        <thead><tr><th>Date</th><th>Time</th><th>Title</th><th>Customer</th><th>Services</th><th>Status</th></tr></thead>
+        <tbody id="emp-schedule-past-tbody"></tbody>
+      </table></div>
+      <div class="section-head-title" style="margin-bottom:14px">JOB HISTORY (INCOME)</div>
       <div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Customer</th><th>Services</th><th>Amount</th><th>Tips</th><th>Split Credit</th><th>Status</th></tr></thead>
         <tbody id="emp-jobs-tbody"></tbody>
@@ -1392,11 +1402,9 @@ function hideLoginScreen() {
 
 function setNavForRole() {
   const isAdmin = currentUser.isAdmin;
-  const empNav   = document.getElementById('nav-employees');
-  const profNav  = document.getElementById('nav-myprofile');
-  const divider  = document.getElementById('nav-admin-divider');
+  const empNav  = document.getElementById('nav-employees');
+  const divider = document.getElementById('nav-admin-divider');
   if (empNav)  empNav.style.display  = isAdmin ? 'flex' : 'none';
-  if (profNav) profNav.style.display = isAdmin ? 'none' : 'flex';
   if (divider) divider.style.display = isAdmin ? 'block' : 'none';
 }
 
@@ -2035,6 +2043,9 @@ async function approvePendingEdit() {
   if (p.dataType === 'customer') {
     const idx = customerData.findIndex(x => x.id == p.recordId);
     if (idx !== -1) { customerData[idx] = {...customerData[idx], ...newD}; await syncSheet('customers'); }
+  } else if (p.dataType === 'customer_delete') {
+    customerData = customerData.filter(x => x.id != p.recordId);
+    await syncSheet('customers');
   } else if (p.dataType === 'income') {
     const idx = incomeData.findIndex(x => x.id == p.recordId);
     if (idx !== -1) { incomeData[idx] = {...incomeData[idx], ...newD}; await syncSheet('income'); }
@@ -2220,6 +2231,32 @@ function openEmployeeProfile(gmail) {
         '<td style="color:var(--muted)">'+h(ex.vendor||'—')+'</td>'+
       '</tr>'
     ).join('') : '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px">No expenses logged yet</td></tr>';
+
+  // Scheduled jobs
+  const todayStr = new Date().toISOString().split('T')[0];
+  const empSchedule = scheduleData.filter(ev =>
+    (ev.employeeEmails||[]).includes(e.gmail) || ev.createdBy === e.gmail
+  ).sort((a,b) => b.date.localeCompare(a.date));
+  const upcomingEv = empSchedule.filter(ev => ev.date >= todayStr && !ev.completed);
+  const pastEv     = empSchedule.filter(ev => ev.date < todayStr || ev.completed);
+  const schedRow = ev => {
+    const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : '';
+    const done = ev.completed === 'true' || ev.completed === true;
+    return '<tr>'+
+      '<td style="color:var(--muted)">'+h(ev.date)+'</td>'+
+      '<td>'+h(fmtTime(ev.time)||'—')+'</td>'+
+      '<td>'+h(ev.title||'—')+'</td>'+
+      '<td>'+h(ev.customer||'—')+'</td>'+
+      '<td>'+h(svcs||'—')+'</td>'+
+      '<td>'+(done?'<span class="pill pill-green" style="font-size:0.6rem">✓ Done</span>':'<span class="pill pill-blue" style="font-size:0.6rem">Scheduled</span>')+'</td>'+
+    '</tr>';
+  };
+  document.getElementById('emp-schedule-upcoming-tbody').innerHTML = upcomingEv.length ?
+    upcomingEv.map(schedRow).join('') :
+    '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px">No upcoming jobs</td></tr>';
+  document.getElementById('emp-schedule-past-tbody').innerHTML = pastEv.length ?
+    pastEv.map(schedRow).join('') :
+    '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px">No past scheduled jobs</td></tr>';
 }
 
 function closeEmployeeProfile() {
@@ -3055,6 +3092,12 @@ function deleteCustomer(id) {
   renderCustomers();
 }
 
+async function employeeDeleteCustomer(id) {
+  const c = customerData.find(x => x.id == id); if (!c) return;
+  if (!confirm('Request deletion of customer "'+c.name+'"? This will be sent to admin for approval.')) return;
+  await submitEditRequest('customer_delete', id, c, { _deleted: true, requestedBy: currentUser.email });
+}
+
 function renderCustomers() {
   const tagPill={Regular:'pill-green',VIP:'pill-yellow',New:'pill-blue','One-time':'pill-purple'};
   const q=(document.getElementById('customer-search')?.value||'').toLowerCase();
@@ -3113,7 +3156,9 @@ function renderCustomers() {
         '</div>'+
         '<div style="display:flex;gap:6px" onclick="event.stopPropagation()">'+
           '<button class="btn btn-ghost btn-sm" onclick="editCustomer('+c.id+')">✎</button>'+
-          '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteCustomer('+c.id+'))">✕</button>'+
+          (currentUser.isAdmin
+            ? '<button class="btn btn-red btn-sm" onclick="confirmDelete(this,()=>deleteCustomer('+c.id+'))">✕</button>'
+            : '<button class="btn btn-red btn-sm" onclick="employeeDeleteCustomer('+c.id+')">✕</button>')+
         '</div>'+
       '</div>'+
       statsBar+
@@ -3896,6 +3941,29 @@ function renderMyProfile() {
     '</div>';
   }
 
+  // Upcoming & past scheduled jobs for this employee
+  const today = new Date().toISOString().split('T')[0];
+  const mySchedule = scheduleData.filter(ev =>
+    (ev.employeeEmails||[]).includes(email) ||
+    ev.createdBy === email
+  ).sort((a,b) => b.date.localeCompare(a.date));
+  const upcoming = mySchedule.filter(ev => ev.date >= today && !ev.completed);
+  const past     = mySchedule.filter(ev => ev.date < today || ev.completed);
+  const typePill = {Job:'pill-green',Estimate:'pill-yellow',Other:'pill-blue'};
+
+  const scheduleRows = (events, emptyMsg) => events.length ? events.map(ev => {
+    const svcs = Array.isArray(ev.services) ? ev.services.join(', ') : '';
+    const done = ev.completed === 'true' || ev.completed === true;
+    return '<tr>'+
+      '<td style="color:var(--muted)">'+h(ev.date)+'</td>'+
+      '<td>'+h(fmtTime(ev.time)||'—')+'</td>'+
+      '<td>'+h(ev.title||'—')+'</td>'+
+      '<td>'+h(ev.customer||'—')+'</td>'+
+      '<td>'+h(svcs||'—')+'</td>'+
+      '<td>'+(done?'<span class="pill pill-green" style="font-size:0.6rem">✓ Done</span>':'<span class="pill pill-blue" style="font-size:0.6rem">Scheduled</span>')+'</td>'+
+    '</tr>';
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:16px">'+emptyMsg+'</td></tr>';
+
   document.getElementById('myprofile-content').innerHTML =
     // Header
     '<div class="profile-header">'+
@@ -3917,8 +3985,23 @@ function renderMyProfile() {
       '<div class="chart-title">'+MO[calMonth]+' '+calYear+' — Revenue Calendar</div>'+
       '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:12px">'+calCells+'</div>'+
     '</div>'+
-    // Job history
-    '<div class="section-head-title" style="margin-bottom:14px">JOB HISTORY</div>'+
+    // Upcoming scheduled jobs
+    '<div class="section-head" style="margin-bottom:14px">'+
+      '<div class="section-head-title">UPCOMING JOBS</div>'+
+      '<button class="btn btn-accent btn-sm" onclick="openNewEventFromTopbar()">+ New Event</button>'+
+    '</div>'+
+    '<div class="table-wrap" style="margin-bottom:28px"><table>'+
+      '<thead><tr><th>Date</th><th>Time</th><th>Title</th><th>Customer</th><th>Services</th><th>Status</th></tr></thead>'+
+      '<tbody>'+scheduleRows(upcoming, 'No upcoming jobs')+'</tbody>'+
+    '</table></div>'+
+    // Past scheduled jobs
+    '<div class="section-head-title" style="margin-bottom:14px">PAST SCHEDULED JOBS</div>'+
+    '<div class="table-wrap" style="margin-bottom:28px"><table>'+
+      '<thead><tr><th>Date</th><th>Time</th><th>Title</th><th>Customer</th><th>Services</th><th>Status</th></tr></thead>'+
+      '<tbody>'+scheduleRows(past, 'No past scheduled jobs')+'</tbody>'+
+    '</table></div>'+
+    // Job history (income)
+    '<div class="section-head-title" style="margin-bottom:14px">JOB HISTORY (INCOME)</div>'+
     '<div class="table-wrap"><table>'+
       '<thead><tr><th>Date</th><th>Customer</th><th>Services</th><th>Amount</th><th>Tips</th><th>Split Credit</th><th>Status</th></tr></thead>'+
       '<tbody>'+
