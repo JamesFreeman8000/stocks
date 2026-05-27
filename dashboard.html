@@ -1009,10 +1009,20 @@
     <div id="complete-job-summary" style="background:var(--surface2);border-radius:10px;padding:14px 16px;margin-bottom:18px;font-size:0.73rem;line-height:1.8;color:var(--muted)"></div>
     <div class="form-grid">
       <div class="form-group"><label>Amount ($)</label><input type="number" id="mc-amount" placeholder="0.00"/></div>
-      <div class="form-group"><label>Tips ($)</label><input type="number" id="mc-tips" placeholder="0.00"/></div>
       <div class="form-group"><label>Mileage</label><input type="number" id="mc-mileage" placeholder="0"/></div>
-      <div class="form-group"><label>Status</label>
-        <select id="mc-status"><option>Completed</option><option>Cancelled</option></select>
+      <div class="form-group"><label>Job Status</label>
+        <select id="mc-status" onchange="togglePaymentStatus()">
+          <option value="Completed">Completed</option>
+          <option value="Cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group" id="mc-payment-group">
+        <label>Payment Status</label>
+        <select id="mc-payment-status">
+          <option value="Paid">Paid</option>
+          <option value="Unpaid">Unpaid</option>
+          <option value="Pending">Pending</option>
+        </select>
       </div>
       <div class="form-group full"><label>Notes</label><textarea id="mc-notes" placeholder="Any additional notes..."></textarea></div>
     </div>
@@ -1170,7 +1180,7 @@ const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications', invoices:'Invoices' };
 const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','cardTotal','cardFee','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type','createdBy'];
-const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
+const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','fullAmount','tips','mileage','status','paymentStatus','link','notes','employeeEmails','employeeNames'];
 const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
 const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy','recurring','recurringDays'];
 const CUSTOMER_HEADERS = ['id','name','phone','email','address','tag','notes'];
@@ -2955,17 +2965,29 @@ function openMarkComplete(eventId) {
   document.getElementById('modal-mark-complete').classList.add('open');
 }
 
+function togglePaymentStatus() {
+  const status = document.getElementById('mc-status').value;
+  const group = document.getElementById('mc-payment-group');
+  if (group) group.style.display = status === 'Cancelled' ? 'none' : 'flex';
+}
+
 async function saveMarkComplete() {
   const ev = scheduleData.find(e => e.id == markCompleteId); if (!ev) return;
-  const amount  = parseFloat(document.getElementById('mc-amount').value)||0;
-  const tips    = parseFloat(document.getElementById('mc-tips').value)||0;
-  const mileage = parseFloat(document.getElementById('mc-mileage').value)||0;
-  const status  = document.getElementById('mc-status').value;
-  const notes   = document.getElementById('mc-notes').value;
-  const matched = customerData.find(c=>c.name.toLowerCase()===(ev.customer||'').toLowerCase());
-  const isApproved = currentUser.isAdmin || employeeData.find(e=>e.gmail===currentUser.email&&e.status==='approved');
-  const empEmails = isApproved ? [currentUser.email] : [];
-  const empNames  = empEmails.map(em=>{const e=employeeData.find(x=>x.gmail===em);return e?e.name:em;});
+  const amount       = parseFloat(document.getElementById('mc-amount').value)||0;
+  const mileage      = parseFloat(document.getElementById('mc-mileage').value)||0;
+  const jobStatus    = document.getElementById('mc-status').value;
+  const payStatus    = jobStatus === 'Cancelled' ? '' : (document.getElementById('mc-payment-status').value || 'Unpaid');
+  const notes        = document.getElementById('mc-notes').value;
+  const matched      = customerData.find(c=>c.name.toLowerCase()===(ev.customer||'').toLowerCase());
+  const isApproved   = currentUser.isAdmin || employeeData.find(e=>e.gmail===currentUser.email&&e.status==='approved');
+  const empEmails    = ev.employeeEmails && ev.employeeEmails.length ? ev.employeeEmails : (isApproved ? [currentUser.email] : []);
+  const empNames     = ev.employeeNames  && ev.employeeNames.length  ? ev.employeeNames  : empEmails.map(em=>{const e=employeeData.find(x=>x.gmail===em);return e?e.name:em;});
+
+  // Calculate income amount based on payment status
+  // Paid = full amount, Unpaid/Pending = 35% deposit only
+  const round2 = n => Math.round(n*100)/100;
+  const incomeAmount = payStatus === 'Paid' ? amount : round2(amount * 0.35);
+
   const incomeEntry = {
     id: Date.now(),
     date: ev.date,
@@ -2973,7 +2995,12 @@ async function saveMarkComplete() {
     customer: ev.customer||'',
     services: Array.isArray(ev.services)?ev.services:[],
     service:  Array.isArray(ev.services)?ev.services.join(', '):(ev.services||''),
-    amount, tips, mileage, status,
+    amount: incomeAmount,
+    fullAmount: amount,      // store full amount for when they pay later
+    tips: 0,
+    mileage,
+    status: payStatus || jobStatus,
+    paymentStatus: payStatus,
     link: '', notes,
     employeeEmails: empEmails,
     employeeNames:  empNames,
@@ -2982,7 +3009,7 @@ async function saveMarkComplete() {
   ev.incomeId  = String(incomeEntry.id);
   incomeData.unshift(incomeEntry);
 
-  // ── Auto-create next occurrence for recurring jobs ──
+  // Auto-create next occurrence for recurring jobs
   if (ev.recurring && ev.recurringDays > 0) {
     const days = parseInt(ev.recurringDays) || 30;
     const currentDate = new Date(ev.date + 'T12:00:00');
@@ -3001,13 +3028,14 @@ async function saveMarkComplete() {
       address:      ev.address || '',
       notes:        ev.notes || '',
       createdBy:    ev.createdBy || currentUser.email,
+      employeeEmails: ev.employeeEmails || [],
+      employeeNames:  ev.employeeNames  || [],
       recurring:    ev.recurring,
       recurringDays: ev.recurringDays,
       completed:    false,
       incomeId:     '',
     };
     scheduleData.push(nextEvent);
-    setSyncStatus('Next '+ev.recurring+' job added for '+nextDate,'var(--accent)');
   }
 
   await Promise.all([syncSheet('income'), syncSheet('schedule')]);
@@ -3015,12 +3043,6 @@ async function saveMarkComplete() {
   markCompleteId = null;
   renderCalendar();
   renderHomeStats();
-  if (!ev.recurring) {
-    setSyncStatus('Job logged ✓','var(--accent)');
-    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),3000);
-  } else {
-    setTimeout(()=>setSyncStatus('Synced','var(--accent)'),4000);
-  }
 }
 
 function renderCalendar() {
@@ -3219,14 +3241,15 @@ function openProfile(customerId) {
   document.getElementById('profile-name').textContent=c.name;
   document.getElementById('profile-badge').innerHTML='<span class="pill '+(tagPill[c.tag]||'pill-blue')+'">'+h(c.tag)+'</span>'+(isRecurring?'<span style="font-size:0.65rem;color:var(--accent);margin-left:8px;letter-spacing:1px">⟳ RECURRING</span>':'');
   document.getElementById('profile-info').innerHTML=(c.phone?'📞 '+h(c.phone)+'&nbsp;&nbsp;':'')+(c.email?'✉️ '+h(c.email)+'&nbsp;&nbsp;':'')+(c.address?'📍 '+h(c.address)+'&nbsp;&nbsp;':'')+(c.notes?'<br><span style="color:var(--muted);font-style:italic">'+h(c.notes)+'</span>':'');
-  const totalSpent=jobs.reduce((s,r)=>s+r.amount+r.tips,0);
-  const totalTips=jobs.reduce((s,r)=>s+r.tips,0);
+  const totalSpent = jobs.filter(r=>r.paymentStatus==='Paid'||r.status==='Paid').reduce((s,r)=>s+(r.fullAmount||r.amount),0);
+  const unpaidJobs = jobs.filter(r=>r.paymentStatus==='Unpaid'||r.paymentStatus==='Pending');
+  const unpaidBalance = unpaidJobs.reduce((s,r)=>s+((r.fullAmount||r.amount)-(r.amount||0)),0);
   const totalMiles=jobs.reduce((s,r)=>s+r.mileage,0);
   const lastJob=jobs.length?[...jobs].sort((a,b)=>b.date.localeCompare(a.date))[0].date:null;
   document.getElementById('profile-quick-stats').innerHTML=
     '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Jobs</div><div class="stat-val" style="color:var(--accent2);font-size:1.5rem">'+jobs.length+'</div></div>'+
-    '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Total Spent</div><div class="stat-val" style="color:var(--accent);font-size:1.5rem">'+fmt(totalSpent)+'</div></div>'+
-    '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Tips</div><div class="stat-val" style="color:var(--yellow);font-size:1.5rem">'+fmt(totalTips)+'</div></div>'+
+    '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Total Paid</div><div class="stat-val" style="color:var(--accent);font-size:1.5rem">'+fmt(totalSpent)+'</div></div>'+
+    (unpaidBalance > 0 ? '<div class="stat-card" style="padding:12px 18px;min-width:110px;border-color:var(--red)40;background:var(--red)10"><div class="stat-label" style="color:var(--red)">⚠ Owes</div><div class="stat-val" style="color:var(--red);font-size:1.5rem">'+fmt(unpaidBalance)+'</div></div>' : '')+
     '<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Miles</div><div class="stat-val" style="color:var(--purple);font-size:1.5rem">'+totalMiles+' mi</div></div>'+
     (lastJob?'<div class="stat-card" style="padding:12px 18px;min-width:110px"><div class="stat-label">Last Job</div><div class="stat-val" style="color:var(--muted);font-size:1rem;margin-top:6px">'+lastJob+'</div></div>':'');
   document.getElementById('profile-edit-btn').onclick=()=>editCustomer(customerId);
@@ -3723,7 +3746,9 @@ async function saveAndSendInvoice() {
 
 async function saveInvoice(status) {
   const items = getLineItems();
-  if (!items.length) { alert('Add at least one line item.'); return; }
+  // For drafts allow saving even with empty amounts — just need at least a customer
+  const isDraft = status === 'Draft';
+  if (!isDraft && !items.length) { alert('Add at least one line item.'); return; }
   if (!selectedInvoiceCustomer && !document.getElementById('inv-customer-search').value.trim()) {
     alert('Please select a customer.'); return;
   }
@@ -3928,15 +3953,24 @@ function filterScheduleCustomers() {
   document.getElementById('s-customer-dropdown').style.display = 'block';
 }
 
+function customerOwesBalance(customerName) {
+  const jobs = incomeData.filter(j =>
+    j.customer && j.customer.toLowerCase() === (customerName||'').toLowerCase() &&
+    (j.paymentStatus === 'Unpaid' || j.paymentStatus === 'Pending')
+  );
+  return Math.round(jobs.reduce((s,r) => s + ((r.fullAmount||r.amount) - (r.amount||0)), 0) * 100) / 100;
+}
+
 function renderScheduleCustomerDropdown(customers, q) {
   const dd = document.getElementById('s-customer-dropdown');
-  let html = customers.map(c =>
-    '<div class="town-option" onmousedown="selectScheduleCustomer('+c.id+')">'+
-      h(c.name)+
+  let html = customers.map(c => {
+    const owes = customerOwesBalance(c.name);
+    const owesBadge = owes > 0 ? ' <span style="color:var(--red);font-size:0.6rem">⚠ Owes '+fmt(owes)+'</span>' : '';
+    return '<div class="town-option" onmousedown="selectScheduleCustomer('+c.id+')" style="'+(owes>0?'color:var(--red)':'')+'">'+
+      h(c.name)+owesBadge+
       (c.phone ? ' <span style="color:var(--muted);font-size:0.62rem">'+h(c.phone)+'</span>' : '')+
-    '</div>'
-  ).join('');
-  // If typed something not matching exactly, offer to use as new customer
+    '</div>';
+  }).join('');
   if (q && !customers.find(c => c.name.toLowerCase() === q)) {
     html += '<div class="town-option" style="color:var(--accent);border-top:1px solid var(--border)" onmousedown="useNewScheduleCustomer()">+ Use "'+h(q)+'" as new customer</div>';
   }
