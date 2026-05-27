@@ -545,34 +545,22 @@
         <button class="btn btn-accent" onclick="openModal('schedule')">+ Add Event</button>
       </div>
     </div>
-
-    <!-- Calendar + Upcoming side by side on wider screens -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start" id="schedule-layout">
-      <div>
-        <div class="cal-header">
-          <div class="cal-day-label">Sun</div><div class="cal-day-label">Mon</div>
-          <div class="cal-day-label">Tue</div><div class="cal-day-label">Wed</div>
-          <div class="cal-day-label">Thu</div><div class="cal-day-label">Fri</div>
-          <div class="cal-day-label">Sat</div>
-        </div>
-        <div class="cal-grid" id="cal-grid"></div>
-      </div>
-      <div>
-        <div class="section-head-title" style="margin-bottom:10px;font-size:0.72rem">UPCOMING EVENTS</div>
-        <div class="table-wrap" style="max-height:420px;overflow-y:auto">
-          <table>
-            <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th>Status</th><th></th></tr></thead>
-            <tbody id="schedule-tbody"></tbody>
-          </table>
-        </div>
+    <div class="cal-header">
+      <div class="cal-day-label">Sun</div><div class="cal-day-label">Mon</div>
+      <div class="cal-day-label">Tue</div><div class="cal-day-label">Wed</div>
+      <div class="cal-day-label">Thu</div><div class="cal-day-label">Fri</div>
+      <div class="cal-day-label">Sat</div>
+    </div>
+    <div class="cal-grid" id="cal-grid"></div>
+    <div style="margin-top:20px">
+      <div class="section-head-title" style="margin-bottom:12px">UPCOMING EVENTS</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Date</th><th>Time</th><th>Event</th><th>Customer</th><th>Type</th><th>Services</th><th>Contact</th><th>Notes</th><th>Status</th><th></th></tr></thead>
+          <tbody id="schedule-tbody"></tbody>
+        </table>
       </div>
     </div>
-
-    <style>
-      @media(max-width:900px) {
-        #schedule-layout { grid-template-columns: 1fr !important; }
-      }
-    </style>
   </div>
 
   <!-- ═══════════════ CUSTOMERS ═══════════════ -->
@@ -852,6 +840,14 @@
           oninput="filterScheduleCustomers()" onfocus="showScheduleCustomerDropdown()" onblur="setTimeout(hideScheduleCustomerDropdown,200)"/>
         <div id="s-customer-dropdown" style="display:none;position:absolute;top:62px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px #00000060"></div>
       </div>
+      <!-- Add Employees — swapped with Type -->
+      <div class="form-group" style="position:relative">
+        <label>👷 Add Employees <span style="font-size:0.62rem;color:var(--muted)">(optional)</span></label>
+        <input type="text" id="s-emp-search" placeholder="Search employee name..." autocomplete="off"
+          oninput="filterScheduleEmployees()" onfocus="showScheduleEmployeeDropdown()" onblur="setTimeout(hideScheduleEmployeeDropdown,200)"/>
+        <div id="s-emp-dropdown" style="display:none;position:absolute;top:62px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px #00000060"></div>
+        <div id="s-emp-selected" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px"></div>
+      </div>
       <div class="form-group"><label>Type</label>
         <select id="s-type"><option>Job</option><option>Estimate</option><option>Follow-up</option><option>Other</option></select>
       </div>
@@ -872,17 +868,6 @@
       <div class="form-group"><label>Email</label><input type="email" id="s-email" placeholder="customer@email.com"/></div>
       <div class="form-group full"><label>Address</label><input type="text" id="s-address" placeholder="123 Main St, City, NJ"/></div>
       <div class="form-group full"><label>Notes</label><textarea id="s-notes" placeholder="Any job details..."></textarea></div>
-      <!-- Employee assignment -->
-      <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-        <label style="margin-bottom:8px;display:block">👷 Assign Employees <span style="font-size:0.65rem;color:var(--muted)">(leave blank = only you)</span></label>
-        <div style="position:relative">
-          <input type="text" id="s-emp-search" placeholder="Search employee name..." autocomplete="off"
-            oninput="filterScheduleEmployees()" onfocus="showScheduleEmployeeDropdown()" onblur="setTimeout(hideScheduleEmployeeDropdown,200)"
-            style="width:100%"/>
-          <div id="s-emp-dropdown" style="display:none;position:absolute;top:42px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px #00000060"></div>
-        </div>
-        <div id="s-emp-selected" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-      </div>
       <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <label style="margin-bottom:8px;display:block">🔁 Recurring Job</label>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
