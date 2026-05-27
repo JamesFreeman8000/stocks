@@ -387,7 +387,6 @@
           <div id="notif-list" style="padding:8px 0"></div>
         </div>
       </div>
-      <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
       <button class="btn btn-accent btn-sm" onclick="openNewEventFromTopbar()">+ New Event</button>
       <!-- Profile pill with dropdown -->
       <div id="topbar-profile-pill" onclick="toggleProfileDropdown(event)" style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px 5px 6px;cursor:pointer;transition:border-color 0.15s;position:relative;user-select:none" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
@@ -443,7 +442,7 @@
         <div class="home-card-desc">Visual breakdown of earnings, expenses, and business growth.</div>
         <div class="home-card-arrow">→</div>
       </div>
-      <div class="home-card" onclick="showTab('employees')" style="--card-accent:#f472b6">
+      <div class="home-card" id="home-card-employees" onclick="showTab('employees')" style="--card-accent:#f472b6;display:none">
         <div class="home-card-icon">👷</div>
         <div class="home-card-title">EMPLOYEES</div>
         <div class="home-card-desc">Manage your team, track individual performance and revenue.</div>
@@ -855,6 +854,17 @@
       <div class="form-group"><label>Email</label><input type="email" id="s-email" placeholder="customer@email.com"/></div>
       <div class="form-group full"><label>Address</label><input type="text" id="s-address" placeholder="123 Main St, City, NJ"/></div>
       <div class="form-group full"><label>Notes</label><textarea id="s-notes" placeholder="Any job details..."></textarea></div>
+      <!-- Employee assignment -->
+      <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+        <label style="margin-bottom:8px;display:block">👷 Assign Employees <span style="font-size:0.65rem;color:var(--muted)">(leave blank = only you)</span></label>
+        <div style="position:relative">
+          <input type="text" id="s-emp-search" placeholder="Search employee name..." autocomplete="off"
+            oninput="filterScheduleEmployees()" onfocus="showScheduleEmployeeDropdown()" onblur="setTimeout(hideScheduleEmployeeDropdown,200)"
+            style="width:100%"/>
+          <div id="s-emp-dropdown" style="display:none;position:absolute;top:42px;left:0;right:0;background:var(--surface2);border:1px solid var(--border);border-radius:8px;z-index:300;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px #00000060"></div>
+        </div>
+        <div id="s-emp-selected" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+      </div>
       <div class="form-group full" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
         <label style="margin-bottom:8px;display:block">🔁 Recurring Job</label>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
@@ -1402,10 +1412,12 @@ function hideLoginScreen() {
 
 function setNavForRole() {
   const isAdmin = currentUser.isAdmin;
-  const empNav  = document.getElementById('nav-employees');
-  const divider = document.getElementById('nav-admin-divider');
-  if (empNav)  empNav.style.display  = isAdmin ? 'flex' : 'none';
-  if (divider) divider.style.display = isAdmin ? 'block' : 'none';
+  const empNav     = document.getElementById('nav-employees');
+  const divider    = document.getElementById('nav-admin-divider');
+  const empCard    = document.getElementById('home-card-employees');
+  if (empNav)   empNav.style.display   = isAdmin ? 'flex' : 'none';
+  if (divider)  divider.style.display  = isAdmin ? 'block' : 'none';
+  if (empCard)  empCard.style.display  = isAdmin ? '' : 'none';
 }
 
 async function identifyUser() {
@@ -2327,7 +2339,7 @@ const _origSaveIncome = saveIncome;
 
 function openNewEventFromTopbar() {
   console.log('openNewEventFromTopbar called');
-  ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id => {
+  ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes','s-emp-search'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -2335,6 +2347,9 @@ function openNewEventFromTopbar() {
   document.getElementById('s-type').value = 'Job';
   document.getElementById('s-date').value = new Date().toISOString().split('T')[0];
   document.getElementById('s-customer-dropdown').style.display = 'none';
+  document.getElementById('s-emp-dropdown').style.display = 'none';
+  document.getElementById('s-emp-selected').innerHTML = '';
+  selectedScheduleEmployees = [];
   document.getElementById('modal-schedule').classList.add('open');
   console.log('modal-schedule open class added:', document.getElementById('modal-schedule').classList.contains('open'));
 }
@@ -2602,17 +2617,22 @@ function renderIncome() {
   const addBtn = document.getElementById('add-job-btn');
   if (addBtn) addBtn.style.display = currentUser.isAdmin ? 'inline-block' : 'none';
 
+  // Employees only see their own jobs
+  const visibleIncome = currentUser.isAdmin
+    ? incomeData
+    : incomeData.filter(r => (r.employeeEmails||[]).includes(currentUser.email));
+
   const q = (document.getElementById('income-search')?.value||'').toLowerCase();
-  const filtered = q ? incomeData.filter(r =>
+  const filtered = q ? visibleIncome.filter(r =>
     getCustomerName(r).toLowerCase().includes(q) ||
     fmtServices(r.services||r.service).toLowerCase().includes(q) ||
     (r.notes||'').toLowerCase().includes(q)
-  ) : incomeData;
-  const totalIncome = incomeData.reduce((s,r)=>s+r.amount,0);
-  const totalMiles  = incomeData.reduce((s,r)=>s+r.mileage,0);
+  ) : visibleIncome;
+  const totalIncome = visibleIncome.reduce((s,r)=>s+r.amount,0);
+  const totalMiles  = visibleIncome.reduce((s,r)=>s+r.mileage,0);
   document.getElementById('income-stats').innerHTML =
-    '<div class="stat-card"><div class="stat-label">Total Income</div><div class="stat-val" style="color:var(--accent)">'+fmt(totalIncome)+'</div></div>'+
-    '<div class="stat-card"><div class="stat-label">Jobs Logged</div><div class="stat-val" style="color:var(--purple)">'+incomeData.length+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">'+(currentUser.isAdmin?'Total Income':'Revenue Contributed')+'</div><div class="stat-val" style="color:var(--accent)">'+fmt(totalIncome)+'</div></div>'+
+    '<div class="stat-card"><div class="stat-label">Jobs Logged</div><div class="stat-val" style="color:var(--purple)">'+visibleIncome.length+'</div></div>'+
     '<div class="stat-card"><div class="stat-label">Total Miles</div><div class="stat-val" style="color:var(--accent2)">'+totalMiles+' mi</div></div>';
   const sPill = {Completed:'pill-green',Pending:'pill-yellow',Cancelled:'pill-red'};
   const rows = filtered.map(r => {
@@ -2749,19 +2769,22 @@ async function saveEvent() {
   if (customerName) {
     const existing = customerData.find(c => c.name.toLowerCase() === customerName.toLowerCase());
     if (!existing) {
-      const newCustomer = {
-        id:      Date.now(),
-        name:    customerName,
-        phone:   phone,
-        email:   email,
-        address: address,
-        tag:     'New',
-        notes:   '',
-      };
+      const newCustomer = { id: Date.now(), name: customerName, phone, email, address, tag: 'New', notes: '' };
       customerData.push(newCustomer);
-      syncSheet('customers'); // non-blocking
+      syncSheet('customers');
     }
   }
+
+  // Build employee lists — always include creator, plus any selected employees
+  const creatorEmp = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === currentUser.email.toLowerCase());
+  const empEmails = [currentUser.email];
+  const empNames  = [creatorEmp ? creatorEmp.name : currentUser.name || currentUser.email];
+  selectedScheduleEmployees.forEach(e => {
+    if (!empEmails.includes(e.gmail)) {
+      empEmails.push(e.gmail);
+      empNames.push(e.name);
+    }
+  });
 
   scheduleData.push({
     id:            Date.now() + 1,
@@ -2771,20 +2794,27 @@ async function saveEvent() {
     customer:      customerName,
     type:          document.getElementById('s-type').value,
     services:      getCheckedServices('s-services'),
-    phone,
-    email,
-    address,
+    phone, email, address,
     notes:         document.getElementById('s-notes').value,
     createdBy:     currentUser.email,
+    employeeEmails: empEmails,
+    employeeNames:  empNames,
     recurring:     recurringVal !== 'none' ? recurringVal : '',
     recurringDays: recurringDays,
   });
   await syncSheet('schedule');
   closeModal('schedule');
-  ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes'].forEach(id=>document.getElementById(id).value='');
+  // Reset all fields
+  ['s-date','s-time','s-title','s-customer','s-phone','s-email','s-address','s-notes','s-emp-search'].forEach(id=>{
+    const el = document.getElementById(id); if(el) el.value='';
+  });
   clearCheckedServices('s-services');
   document.getElementById('s-recurring').value = 'none';
   document.getElementById('s-recurring-interval').style.display = 'none';
+  document.getElementById('s-customer-dropdown').style.display = 'none';
+  document.getElementById('s-emp-dropdown').style.display = 'none';
+  document.getElementById('s-emp-selected').innerHTML = '';
+  selectedScheduleEmployees = [];
   renderCalendar();
 }
 
@@ -3834,6 +3864,51 @@ async function deleteInvoice(id) {
   invoiceData = invoiceData.filter(x=>x.id!=id);
   await syncSheet('invoices');
   renderInvoices();
+}
+
+// ═══════════════ SCHEDULE EMPLOYEE SEARCH ═══════════════
+let selectedScheduleEmployees = []; // array of {gmail, name}
+
+function filterScheduleEmployees() {
+  const q = (document.getElementById('s-emp-search').value||'').toLowerCase();
+  const selected = selectedScheduleEmployees.map(e=>e.gmail);
+  const approved = employeeData.filter(e => e.status === 'approved' && !selected.includes(e.gmail));
+  const matches = q.length < 1 ? approved.slice(0,8) : approved.filter(e=>(e.name||'').toLowerCase().includes(q)||(e.gmail||'').toLowerCase().includes(q));
+  const dd = document.getElementById('s-emp-dropdown');
+  dd.innerHTML = matches.length
+    ? matches.map(e=>'<div class="town-option" onmousedown="selectScheduleEmployee(\''+h(e.gmail)+'\',\''+h(e.name||e.gmail)+'\')">'+h(e.name||e.gmail)+'<span style="color:var(--muted);font-size:0.62rem;margin-left:6px">'+h(e.gmail)+'</span></div>').join('')
+    : '<div class="town-option" style="color:var(--muted)">No employees found</div>';
+  dd.style.display = 'block';
+}
+
+function showScheduleEmployeeDropdown() {
+  filterScheduleEmployees();
+}
+function hideScheduleEmployeeDropdown() {
+  document.getElementById('s-emp-dropdown').style.display = 'none';
+}
+
+function selectScheduleEmployee(gmail, name) {
+  if (selectedScheduleEmployees.find(e=>e.gmail===gmail)) return;
+  selectedScheduleEmployees.push({gmail, name});
+  renderSelectedEmployees();
+  document.getElementById('s-emp-search').value = '';
+  hideScheduleEmployeeDropdown();
+}
+
+function removeScheduleEmployee(gmail) {
+  selectedScheduleEmployees = selectedScheduleEmployees.filter(e=>e.gmail!==gmail);
+  renderSelectedEmployees();
+}
+
+function renderSelectedEmployees() {
+  const container = document.getElementById('s-emp-selected');
+  container.innerHTML = selectedScheduleEmployees.map(e=>
+    '<div style="display:flex;align-items:center;gap:6px;background:var(--accent)20;border:1px solid var(--accent)40;border-radius:20px;padding:4px 10px;font-size:0.7rem;color:var(--accent)">'+
+      h(e.name)+
+      '<span onclick="removeScheduleEmployee(\''+h(e.gmail)+'\')" style="cursor:pointer;color:var(--muted);font-size:0.8rem;margin-left:2px">✕</span>'+
+    '</div>'
+  ).join('');
 }
 
 // ═══════════════ SCHEDULE CUSTOMER SEARCH ═══════════════
