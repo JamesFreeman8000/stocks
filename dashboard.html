@@ -343,6 +343,20 @@
       <span class="nav-icon">⏳</span> Pending Approval
       <span id="nav-pending-badge" style="display:none;margin-left:auto;background:var(--red);color:#fff;font-size:0.6rem;padding:2px 6px;border-radius:10px;font-weight:600">0</span>
     </button>
+  </div>
+
+  <!-- Profile card pinned to bottom of sidebar -->
+  <div id="sidebar-profile-card" onclick="openMyProfile()" style="border-top:1px solid var(--border);padding:14px 16px;cursor:pointer;transition:background 0.12s;flex-shrink:0" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='transparent'">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div id="sidebar-avatar" style="width:34px;height:34px;min-width:34px;border-radius:50%;background:var(--accent)22;border:2px solid var(--accent)50;color:var(--accent);font-family:var(--font-display);font-size:1.1rem;display:flex;align-items:center;justify-content:center">?</div>
+      <div style="flex:1;min-width:0">
+        <div id="sidebar-profile-name" style="font-size:0.75rem;color:#e8edf8;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Loading...</div>
+        <div style="font-size:0.6rem;color:var(--accent);letter-spacing:1px;margin-top:2px;text-transform:uppercase">Profile</div>
+      </div>
+      <div style="font-size:0.8rem;color:var(--muted)">›</div>
+    </div>
+  </div>
+
   <div class="sidebar-footer">
     <div class="sidebar-date" id="sidebar-date"></div>
     <div>PRIVATE DASHBOARD</div>
@@ -377,8 +391,24 @@
         </div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="exportData()">⬇ Export</button>
-      <button class="btn btn-ghost btn-sm" onclick="signOut()" style="font-size:0.65rem">Sign Out</button>
       <button class="btn btn-accent btn-sm" onclick="openNewEventFromTopbar()">+ New Event</button>
+      <!-- Profile pill with dropdown -->
+      <div id="topbar-profile-pill" onclick="toggleProfileDropdown(event)" style="display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:5px 12px 5px 6px;cursor:pointer;transition:border-color 0.15s;position:relative;user-select:none" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+        <div id="topbar-avatar" style="width:26px;height:26px;border-radius:50%;background:var(--accent)22;border:1.5px solid var(--accent)50;color:var(--accent);font-family:var(--font-display);font-size:0.9rem;display:flex;align-items:center;justify-content:center">?</div>
+        <span id="topbar-profile-name" style="font-size:0.72rem;color:#e8edf8;font-weight:500;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">...</span>
+        <span style="font-size:0.65rem;color:var(--muted)">▾</span>
+        <!-- Dropdown -->
+        <div id="topbar-profile-dropdown" onclick="event.stopPropagation()" style="display:none;position:absolute;top:42px;right:0;width:220px;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 32px #00000060;z-index:500;overflow:hidden">
+          <div style="padding:14px 16px;border-bottom:1px solid var(--border);background:var(--surface2)">
+            <div id="dropdown-avatar" style="width:40px;height:40px;border-radius:50%;background:var(--accent)22;border:2px solid var(--accent)50;color:var(--accent);font-family:var(--font-display);font-size:1.3rem;display:flex;align-items:center;justify-content:center;margin-bottom:8px">?</div>
+            <div id="dropdown-name" style="font-size:0.85rem;color:#e8edf8;font-weight:500;margin-bottom:2px">...</div>
+            <div id="dropdown-email" style="font-size:0.63rem;color:var(--muted)">...</div>
+          </div>
+          <button onclick="openMyProfile()" style="width:100%;padding:11px 16px;background:none;border:none;color:var(--text);font-family:var(--font-mono);font-size:0.73rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">👤 &nbsp;Profile</button>
+          <div style="border-top:1px solid var(--border)"></div>
+          <button onclick="signOut()" style="width:100%;padding:11px 16px;background:none;border:none;color:var(--red);font-family:var(--font-mono);font-size:0.73rem;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background='none'">⬡ &nbsp;Sign Out</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1017,20 +1047,28 @@
       <div class="form-group full">
         <label style="margin-bottom:8px;display:block">Payment Methods to Show</label>
         <div style="display:flex;flex-wrap:wrap;gap:8px">
-          <label class="svc-chip" onclick="toggleChip(this)" data-value="Venmo">💜 Venmo</label>
-          <label class="svc-chip checked" onclick="toggleChip(this)" data-value="CashApp">💚 Cash App</label>
-          <label class="svc-chip" onclick="toggleChip(this)" data-value="Zelle">💙 Zelle</label>
-          <label class="svc-chip" onclick="toggleChip(this)" data-value="Check">📝 Check</label>
-          <label class="svc-chip" onclick="toggleChip(this)" data-value="Cash">💵 Cash</label>
+          <label class="svc-chip" onclick="toggleChip(this);recalcInvoice()" data-value="Venmo">💜 Venmo</label>
+          <label class="svc-chip checked" onclick="toggleChip(this);recalcInvoice()" data-value="CashApp">💚 Cash App</label>
+          <label class="svc-chip" onclick="toggleChip(this);recalcInvoice()" data-value="Zelle">💙 Zelle</label>
+          <label class="svc-chip" onclick="toggleChip(this);recalcInvoice()" data-value="Check">📝 Check</label>
+          <label class="svc-chip" onclick="toggleChip(this);recalcInvoice()" data-value="Cash">💵 Cash</label>
+          <label class="svc-chip" onclick="toggleChip(this);recalcInvoice()" data-value="Card">💳 Credit/Debit Card (+3.2%)</label>
         </div>
       </div>
       <!-- Total display -->
       <div class="form-group full">
-        <div style="background:var(--surface2);border-radius:10px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center">
-          <div id="inv-total-breakdown" style="font-size:0.72rem;color:var(--muted);line-height:2"></div>
-          <div style="text-align:right">
-            <div style="font-size:0.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Total Due</div>
-            <div id="inv-total-display" style="font-family:var(--font-display);font-size:1.8rem;color:var(--accent)">$0.00</div>
+        <div style="background:var(--surface2);border-radius:10px;padding:14px 18px">
+          <div id="inv-total-breakdown" style="font-size:0.72rem;color:var(--muted);line-height:2;margin-bottom:10px"></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap">
+            <div style="flex:1;min-width:160px;background:var(--bg);border-radius:8px;padding:10px 14px">
+              <div style="font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Cash / Check / Digital</div>
+              <div id="inv-total-cash" style="font-family:var(--font-display);font-size:1.6rem;color:var(--accent)">$0.00</div>
+            </div>
+            <div id="inv-card-total-box" style="flex:1;min-width:160px;background:var(--bg);border-radius:8px;padding:10px 14px;display:none">
+              <div style="font-size:0.58rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Credit / Debit Card</div>
+              <div id="inv-total-card" style="font-family:var(--font-display);font-size:1.6rem;color:var(--yellow)">$0.00</div>
+              <div style="font-size:0.6rem;color:var(--muted);margin-top:2px">Includes 3.2% processing fee</div>
+            </div>
           </div>
         </div>
       </div>
@@ -1108,7 +1146,7 @@ const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const API_BASE    = 'https://sheets.googleapis.com/v4/spreadsheets/'+SHEET_ID;
 const ADMIN_EMAIL = 'jamesfreeman8000@gmail.com';
 const SHEETS      = { income:'Income', expenses:'Expenses', schedule:'Schedule', customers:'Customers', employees:'Employees', pending:'Pending', notifications:'Notifications', invoices:'Invoices' };
-const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type','createdBy'];
+const INVOICE_HEADERS = ['id','number','status','customerId','customerName','customerEmail','customerPhone','customerAddress','lineItems','subtotal','depositPercent','depositAmount','totalDue','cardTotal','cardFee','notes','paymentMethods','createdDate','dueDate','sentDate','signedDate','signatureName','signatureData','paidDate','type','createdBy'];
 const INCOME_HEADERS   = ['id','date','customerId','customer','services','amount','tips','mileage','status','link','notes','employeeEmails','employeeNames'];
 const EXPENSE_HEADERS  = ['id','date','category','description','amount','vendor','notes','employeeEmail','employeeName'];
 const SCHEDULE_HEADERS = ['id','date','time','title','customer','type','services','phone','email','address','notes','completed','incomeId','createdBy','recurring','recurringDays'];
@@ -1349,6 +1387,7 @@ function hideLoginScreen() {
     if (m) m.classList.remove('open');
   }
   setNavForRole();
+  updateProfileUI();
 }
 
 function setNavForRole() {
@@ -1375,6 +1414,7 @@ async function identifyUser() {
     currentUser.isAdmin = cached === ADMIN_EMAIL.toLowerCase();
     if (currentUser.isAdmin) blockSetupModal();
     setNavForRole();
+    updateProfileUI();
     return;
   }
   // Fallback: try userinfo if we somehow have a token but no cached email
@@ -2262,6 +2302,53 @@ function openNewEventFromTopbar() {
   console.log('modal-schedule open class added:', document.getElementById('modal-schedule').classList.contains('open'));
 }
 
+
+function toggleProfileDropdown(e) {
+  e.stopPropagation();
+  const dd = document.getElementById('topbar-profile-dropdown');
+  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+
+function openMyProfile() {
+  // Close dropdown
+  document.getElementById('topbar-profile-dropdown').style.display = 'none';
+  // Open correct profile based on role
+  if (currentUser.isAdmin) {
+    // Admin — find their employee record and open it
+    const emp = employeeData.find(e => e.gmail && e.gmail.toLowerCase() === currentUser.email.toLowerCase());
+    if (emp) openEmployeeProfile(emp.gmail);
+    else showTab('myprofile'); // fallback
+  } else {
+    showTab('myprofile');
+  }
+}
+
+function updateProfileUI() {
+  const name  = currentUser.name || currentUser.email || '?';
+  const init  = name ? name[0].toUpperCase() : '?';
+  // Topbar pill
+  const tName = document.getElementById('topbar-profile-name');
+  const tAvatar = document.getElementById('topbar-avatar');
+  const dName = document.getElementById('dropdown-name');
+  const dEmail = document.getElementById('dropdown-email');
+  const dAvatar = document.getElementById('dropdown-avatar');
+  if (tName)  tName.textContent  = name.split(' ')[0]; // first name only in pill
+  if (tAvatar) tAvatar.textContent = init;
+  if (dName)  dName.textContent  = name;
+  if (dEmail) dEmail.textContent  = currentUser.email;
+  if (dAvatar) dAvatar.textContent = init;
+  // Sidebar card
+  const sName   = document.getElementById('sidebar-profile-name');
+  const sAvatar = document.getElementById('sidebar-avatar');
+  if (sName)   sName.textContent   = name;
+  if (sAvatar) sAvatar.textContent = init;
+}
+
+// Close dropdown when clicking anywhere else
+document.addEventListener('click', () => {
+  const dd = document.getElementById('topbar-profile-dropdown');
+  if (dd) dd.style.display = 'none';
+});
 
 function toggleSidebar() {
   document.getElementById('sidebar').classList.toggle('open');
@@ -3403,17 +3490,32 @@ function recalcInvoice() {
   const items = getLineItems();
   const subtotal = items.reduce((s,i)=>s+i.amount,0);
   const type = document.getElementById('inv-type').value;
+  const round2 = n => Math.round(n * 100) / 100;
   let totalDue = subtotal;
   let breakdown = '<div>Subtotal: '+fmt(subtotal)+'</div>';
   if (type === 'deposit') {
     const pct = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
-    totalDue = subtotal * (pct/100);
+    totalDue = round2(subtotal * (pct/100));
     breakdown += '<div style="color:var(--yellow)">Deposit ('+pct+'%): '+fmt(totalDue)+'</div>';
   } else if (type === 'final') {
     breakdown += '<div style="color:var(--accent2)">Remaining balance due</div>';
+    totalDue = round2(subtotal);
+  } else {
+    totalDue = round2(subtotal);
   }
+  // Check if card is selected
+  const cardSelected = !!document.querySelector('#modal-create-invoice .svc-chip.checked[data-value="Card"]');
+  const cardTotal = round2(totalDue * 1.032);
+  const cardFee   = round2(cardTotal - totalDue);
   document.getElementById('inv-total-breakdown').innerHTML = breakdown;
-  document.getElementById('inv-total-display').textContent = fmt(totalDue);
+  document.getElementById('inv-total-cash').textContent = fmt(totalDue);
+  const cardBox = document.getElementById('inv-card-total-box');
+  if (cardBox) cardBox.style.display = cardSelected ? 'block' : 'none';
+  if (cardSelected) {
+    document.getElementById('inv-total-card').textContent = fmt(cardTotal);
+    document.getElementById('inv-total-breakdown').innerHTML = breakdown +
+      '<div style="color:var(--yellow)">Card fee (3.2%): +'+fmt(cardFee)+'</div>';
+  }
 }
 
 function updateInvoiceType() {
@@ -3549,6 +3651,10 @@ async function saveInvoice(status) {
   const depositPct  = parseFloat(document.getElementById('inv-deposit-pct').value)||35;
   const totalDue    = round2(type==='deposit' ? subtotal*(depositPct/100) : subtotal);
   const depositAmt  = round2(type==='deposit' ? totalDue : 0);
+  const cardSelected = !!document.querySelector('#modal-create-invoice .svc-chip.checked[data-value="Card"]');
+  const cardTotal = cardSelected ? round2(totalDue * 1.032) : 0;
+  const cardFee   = cardSelected ? round2(cardTotal - totalDue) : 0;
+  const payMethods = [...document.querySelectorAll('#modal-create-invoice .svc-chip.checked')].map(c=>c.dataset.value).join(',');
   const num = editingInvoiceId ? invoiceData.find(x=>x.id==editingInvoiceId)?.number : getNextInvoiceNumber();
   const inv = {
     id:              editingInvoiceId || Date.now(),
@@ -3564,8 +3670,10 @@ async function saveInvoice(status) {
     depositPercent:  type==='deposit' ? depositPct : 0,
     depositAmount:   depositAmt,
     totalDue,
+    cardTotal,
+    cardFee,
     notes:           document.getElementById('inv-notes').value,
-    paymentMethods:  getCheckedServices('modal-create-invoice').join(',') || document.querySelectorAll('#modal-create-invoice .svc-chip.checked') ? [...document.querySelectorAll('#modal-create-invoice .svc-chip.checked')].map(c=>c.dataset.value).join(',') : '',
+    paymentMethods:  payMethods,
     createdDate:     new Date().toISOString().split('T')[0],
     dueDate:         document.getElementById('inv-due-date').value,
     sentDate:        status==='Sent' ? new Date().toISOString().split('T')[0] : '',
