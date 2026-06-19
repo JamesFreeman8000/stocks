@@ -3,436 +3,491 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EDGAR Terminal — SEC Filings Explorer</title>
+<title>FINTERM — Filing Tracker & Market Terminal</title>
 <style>
-  :root{
-    --bg:#0a0e14; --panel:#111722; --panel2:#161d2b; --line:#222c3d;
-    --txt:#d6dee9; --mut:#7d8aa0; --acc:#4da3ff; --acc2:#34d399;
-    --warn:#fbbf24; --red:#f87171; --chip:#1b2536;
-    --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
-    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px;line-height:1.45}
-  a{color:var(--acc);text-decoration:none}
-  a:hover{text-decoration:underline}
-  header{position:sticky;top:0;z-index:30;background:linear-gradient(180deg,#0d1320,#0a0e14);border-bottom:1px solid var(--line);padding:10px 16px}
-  .brand{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-  .logo{font-family:var(--mono);font-weight:700;font-size:16px;letter-spacing:.5px;color:var(--acc)}
-  .logo span{color:var(--acc2)}
-  .tag{font-size:11px;color:var(--mut);font-family:var(--mono)}
-  .searchbar{display:flex;gap:8px;flex:1;min-width:240px;max-width:560px;position:relative}
-  .searchbar input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:9px 12px;font-size:14px;outline:none}
-  .searchbar input:focus{border-color:var(--acc)}
-  .searchbar button{background:var(--acc);color:#031018;border:none;border-radius:8px;padding:0 16px;font-weight:600;cursor:pointer}
-  .searchbar button:hover{filter:brightness(1.1)}
-  #suggest{position:absolute;top:42px;left:0;right:62px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;max-height:320px;overflow:auto;z-index:40;display:none}
-  #suggest div{padding:8px 12px;cursor:pointer;border-bottom:1px solid var(--line);font-size:13px}
-  #suggest div:hover{background:var(--panel)}
-  #suggest .tk{font-family:var(--mono);color:var(--acc2);font-weight:600;margin-right:8px}
-  .wrap{max-width:1280px;margin:0 auto;padding:16px}
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:16px;flex-wrap:wrap}
-  .tab{padding:9px 16px;cursor:pointer;color:var(--mut);font-weight:500;border-bottom:2px solid transparent;font-size:13px}
-  .tab.active{color:var(--acc);border-bottom-color:var(--acc)}
-  .tab:hover{color:var(--txt)}
-  .co-head{display:flex;align-items:center;gap:14px;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin-bottom:16px}
-  .co-head h1{margin:0;font-size:20px}
-  .co-head .meta{font-size:12px;color:var(--mut);font-family:var(--mono)}
-  .badge{font-family:var(--mono);font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:5px;padding:2px 7px;color:var(--mut)}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
-  .panel h3{margin:0 0 12px;font-size:14px;color:var(--txt);font-family:var(--mono);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
-  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
-  .filters select,.filters input{background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:7px 10px;font-size:13px;outline:none}
-  .chips{display:flex;gap:6px;flex-wrap:wrap}
-  .chip{font-family:var(--mono);font-size:11px;padding:4px 9px;border-radius:14px;border:1px solid var(--line);cursor:pointer;color:var(--mut);user-select:none}
-  .chip.on{background:var(--acc);color:#031018;border-color:var(--acc);font-weight:600}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;color:var(--mut);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel)}
-  td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
-  tr:hover td{background:var(--panel2)}
-  .ftype{font-family:var(--mono);font-weight:600;color:var(--acc2)}
-  .scroll{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:8px}
-  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  @media(max-width:840px){.grid2,.grid3{grid-template-columns:1fr}}
-  .stat{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:12px}
-  .stat .lbl{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.4px;font-family:var(--mono)}
-  .stat .val{font-size:20px;font-weight:700;margin-top:4px}
-  .stat .sub{font-size:11px;color:var(--mut);margin-top:2px;font-family:var(--mono)}
-  .up{color:var(--acc2)} .down{color:var(--red)}
-  .muted{color:var(--mut)}
-  .empty{text-align:center;color:var(--mut);padding:48px 16px;font-family:var(--mono)}
-  .spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
-  @keyframes spin{to{transform:rotate(360deg)}}
-  .bar{height:7px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:5px}
-  .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--acc),var(--acc2))}
-  svg text{fill:var(--mut);font-family:var(--mono);font-size:10px}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;font-family:var(--mono);color:var(--mut);margin-top:8px}
-  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle}
-  .hidden{display:none}
-  .setup{background:var(--panel);border:1px solid var(--warn);border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:13px}
-  .setup code{background:var(--panel2);padding:2px 6px;border-radius:4px;font-family:var(--mono);color:var(--warn)}
-  .ftspanel input{width:100%}
-  .row-link{cursor:pointer}
-  .pill{font-family:var(--mono);font-size:10px;padding:2px 6px;border-radius:4px;border:1px solid var(--line)}
-  .pill.buy{color:var(--acc2);border-color:var(--acc2)}
-  .pill.sell{color:var(--red);border-color:var(--red)}
-  footer{text-align:center;color:var(--mut);font-size:11px;font-family:var(--mono);padding:24px 16px}
-  .toast{position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:10px 14px;font-size:13px;z-index:100;max-width:340px}
-  .toast.err{border-color:var(--red);color:var(--red)}
+:root{
+  --bg:#0a0d13;--panel:#121823;--panel2:#171f2e;--card:#0f1520;--line:#222c3d;
+  --txt:#e3e9f2;--mut:#8593a8;--dim:#5d6b82;--acc:#3b82f6;--acc2:#22d3ee;
+  --green:#22c55e;--red:#ef4444;--gold:#fbbf24;--purple:#a855f7;
+  --mono:"SF Mono",ui-monospace,"Cascadia Code",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#2a3548;border-radius:5px}
+::-webkit-scrollbar-track{background:transparent}
+
+/* header */
+header{position:sticky;top:0;z-index:50;background:#0a0d13;border-bottom:1px solid var(--line)}
+.hbar{display:flex;align-items:center;gap:18px;padding:12px 20px;max-width:1400px;margin:0 auto}
+.logo{font-weight:800;font-size:20px;letter-spacing:-.5px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.logo .mk{background:var(--acc);color:#fff;border-radius:6px;padding:3px 6px;font-family:var(--mono);font-size:12px}
+.searchwrap{flex:1;max-width:620px;position:relative;display:flex;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:24px;padding:3px 4px}
+.searchwrap .seg{display:flex;background:var(--card);border-radius:20px;padding:2px}
+.searchwrap .seg button{background:none;border:none;color:var(--mut);padding:6px 14px;border-radius:18px;cursor:pointer;font-weight:600;font-size:13px}
+.searchwrap .seg button.on{background:var(--acc);color:#fff}
+.searchwrap input{flex:1;background:none;border:none;color:var(--txt);padding:8px 12px;font-size:15px;outline:none}
+#suggest{position:absolute;top:48px;left:0;right:0;background:var(--panel2);border:1px solid var(--line);border-radius:12px;max-height:380px;overflow:auto;z-index:60;display:none;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+#suggest div{padding:10px 14px;cursor:pointer;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline}
+#suggest div:hover{background:var(--card)}
+#suggest .tk{font-family:var(--mono);color:var(--acc2);font-weight:700;min-width:62px}
+#suggest .nm{color:var(--txt)}#suggest .ex{margin-left:auto;font-size:11px;color:var(--dim)}
+.hbtns{display:flex;gap:10px;align-items:center}
+.btn{border:none;border-radius:8px;padding:8px 14px;font-weight:700;cursor:pointer;font-size:13px}
+.btn.ghost{background:var(--panel);color:var(--txt);border:1px solid var(--line)}
+.btn.gold{background:var(--gold);color:#1a1400}
+.avatar{width:34px;height:34px;border-radius:50%;background:var(--acc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700}
+
+/* nav tabs */
+.navtabs{display:flex;gap:4px;padding:0 20px;max-width:1400px;margin:0 auto;overflow-x:auto}
+.navtab{padding:13px 16px;color:var(--mut);font-weight:700;font-size:15px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;display:flex;align-items:center;gap:6px}
+.navtab.on{color:var(--txt);border-bottom-color:var(--acc)}
+.navtab:hover{color:var(--txt)}
+.pro{background:var(--purple);color:#fff;font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;letter-spacing:.5px}
+
+.wrap{max-width:1400px;margin:0 auto;padding:20px}
+.view{display:none}.view.on{display:block}
+
+/* setup */
+.setup{background:var(--panel);border:1px solid var(--gold);border-radius:14px;padding:20px;margin-bottom:20px}
+.setup h2{margin:0 0 6px;font-size:17px}.setup p{margin:6px 0;color:var(--mut);font-size:13px}
+.setup .field{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.setup input{flex:1;min-width:220px;background:var(--card);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:10px 12px;font-family:var(--mono);font-size:13px}
+.setup code{background:var(--card);padding:2px 6px;border-radius:4px;font-family:var(--mono);color:var(--gold)}
+.setup ol{color:var(--mut);font-size:13px;margin:8px 0;padding-left:20px}
+
+/* feed */
+.feedhead{display:flex;align-items:center;gap:14px;margin-bottom:6px}
+.feedhead h1{font-size:26px;margin:0}
+.daysep{font-size:12px;color:var(--dim);font-weight:800;letter-spacing:1px;margin:18px 0 8px}
+.filing{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:10px;transition:border-color .15s}
+.filing:hover{border-color:#2f3d54}
+.filing .top{display:flex;align-items:flex-start;gap:10px}
+.formtag{background:var(--acc);color:#fff;border-radius:6px;min-width:30px;height:24px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-weight:700;font-size:12px;flex-shrink:0;margin-top:1px}
+.formtag.f4{background:#2563eb}.formtag.f8{background:#7c3aed}.formtag.f10{background:#0891b2}.formtag.f13{background:#c026d3}.formtag.fS{background:#ca8a04}
+.filing .desc{color:var(--mut);font-size:13px;flex:1}
+.filing .time{color:var(--dim);font-size:12px;font-family:var(--mono);white-space:nowrap}
+.filing .acts{display:flex;gap:6px;margin-left:8px}
+.filing .acts button,.filing .acts a{background:var(--panel);border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:4px 10px;font-size:12px;cursor:pointer;font-weight:600}
+.filing .acts button:hover,.filing .acts a:hover{color:var(--txt);text-decoration:none}
+.filing .ent{margin-top:6px;margin-left:40px}
+.filing .ent .tk{font-family:var(--mono);font-weight:800;color:var(--acc);font-size:16px;cursor:pointer}
+.filing .ent .nm{color:var(--txt);font-size:13px;margin-top:1px}
+
+/* quote page */
+.qhead{display:flex;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:6px}
+.qhead .nm{font-size:15px;color:var(--mut)}
+.qhead h1{font-size:30px;margin:2px 0 0}
+.qprice{display:flex;align-items:baseline;gap:14px;margin:8px 0 4px}
+.qprice .px{font-size:38px;font-weight:800;font-family:var(--mono)}
+.qprice .chg{font-size:20px;font-weight:700;font-family:var(--mono)}
+.qmeta{color:var(--dim);font-size:12px;font-family:var(--mono)}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin:16px 0}
+.statgrid .cell{padding:11px 14px;border-bottom:1px solid var(--line);border-right:1px solid var(--line);display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.statgrid .cell .k{color:var(--mut)}.statgrid .cell .v{font-weight:700;font-family:var(--mono);text-align:right}
+.cards{display:grid;grid-template-columns:2fr 1fr;gap:16px}
+@media(max-width:900px){.cards{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:16px}
+.card h3{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--mut);font-family:var(--mono)}
+.subtabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+.subtab{padding:8px 13px;color:var(--mut);font-weight:600;font-size:13px;cursor:pointer;border-bottom:2px solid transparent}
+.subtab.on{color:var(--acc);border-bottom-color:var(--acc)}
+.rangebtns{display:flex;gap:4px;margin-bottom:10px}
+.rangebtns button{background:var(--panel);border:1px solid var(--line);color:var(--mut);border-radius:6px;padding:4px 11px;cursor:pointer;font-family:var(--mono);font-size:12px;font-weight:600}
+.rangebtns button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;color:var(--mut);font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:9px 10px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--card)}
+td{padding:9px 10px;border-bottom:1px solid var(--line)}
+tbody tr:hover td{background:var(--panel2)}
+.scroll{max-height:520px;overflow:auto}
+.ftype{font-family:var(--mono);font-weight:700;color:var(--acc2)}
+.pill{font-family:var(--mono);font-size:11px;padding:2px 7px;border-radius:5px;border:1px solid var(--line);font-weight:700}
+.pill.buy{color:var(--green);border-color:#1d5e36;background:#0e2a18}
+.pill.sell{color:var(--red);border-color:#5e1d1d;background:#2a0e0e}
+.up{color:var(--green)}.down{color:var(--red)}.muted{color:var(--mut)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.chip{font-family:var(--mono);font-size:11px;padding:5px 11px;border-radius:16px;border:1px solid var(--line);cursor:pointer;color:var(--mut);user-select:none;font-weight:600}
+.chip.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+.empty{text-align:center;color:var(--dim);padding:50px 16px;font-family:var(--mono)}
+.spinner{display:inline-block;width:15px;height:15px;border:2px solid var(--line);border-top-color:var(--acc);border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.bar{height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.bar i{display:block;height:100%}
+svg text{fill:var(--mut);font-family:var(--mono);font-size:10px}
+.toast{position:fixed;bottom:20px;right:20px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 16px;font-size:13px;z-index:200;max-width:360px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.toast.err{border-color:var(--red)}
+.starbtn{background:none;border:none;cursor:pointer;font-size:20px;color:var(--dim)}
+.starbtn.on{color:var(--gold)}
+.wl-row{display:flex;align-items:center;gap:12px;padding:12px;border-bottom:1px solid var(--line);cursor:pointer}
+.wl-row:hover{background:var(--panel2)}
+.range52{position:relative;height:24px;margin-top:6px}
+.range52 .track{position:absolute;top:10px;left:0;right:0;height:4px;background:var(--panel2);border-radius:2px}
+.range52 .fillpos{position:absolute;top:6px;width:12px;height:12px;border-radius:50%;background:var(--acc);transform:translateX(-50%)}
+.range52 .lbl{position:absolute;top:-2px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.newsitem{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.newsitem img{width:80px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0;background:var(--panel2)}
+.newsitem .h{font-weight:600;font-size:14px;line-height:1.3}
+.newsitem .s{color:var(--dim);font-size:11px;font-family:var(--mono);margin-top:4px}
+footer{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono);padding:30px 16px}
+.loadmore{display:block;margin:14px auto;background:var(--panel);border:1px solid var(--line);color:var(--mut);border-radius:8px;padding:9px 22px;cursor:pointer;font-weight:600}
 </style>
 </head>
 <body>
 <header>
-  <div class="brand">
-    <div class="logo">EDGAR<span>//</span>TERMINAL</div>
-    <div class="searchbar">
-      <input id="q" placeholder="Search ticker or company (e.g. AAPL, Tesla, Berkshire)…" autocomplete="off">
-      <button id="go">Search</button>
+  <div class="hbar">
+    <div class="logo"><span class="mk">SEC</span>Filing Tracker</div>
+    <div class="searchwrap">
+      <div class="seg"><button class="on" data-mode="entities">Entities</button><button data-mode="forms">Forms</button></div>
+      <input id="q" placeholder="Search entities, tickers, or CIK…" autocomplete="off">
       <div id="suggest"></div>
     </div>
-    <div class="tag" id="status">live · data.sec.gov</div>
+    <div class="hbtns">
+      <button class="btn ghost" id="cfgBtn">⚙ API Key</button>
+      <button class="btn gold">Upgrade</button>
+      <div class="avatar">J</div>
+    </div>
+  </div>
+  <div class="navtabs" id="navtabs">
+    <div class="navtab on" data-view="feed">Latest Filings</div>
+    <div class="navtab" data-view="quote">Quote</div>
+    <div class="navtab" data-view="news">News</div>
+    <div class="navtab" data-view="insiders">Insider Trades <span class="pro">PRO</span></div>
+    <div class="navtab" data-view="inst">13F Flows <span class="pro">PRO</span></div>
+    <div class="navtab" data-view="earnings">Earnings</div>
+    <div class="navtab" data-view="watchlist">Watchlists</div>
   </div>
 </header>
 
 <div class="wrap">
+  <!-- SETUP -->
   <div class="setup" id="setup">
-    <strong>⚙ One-time setup:</strong> SEC requires a User-Agent identifying you. Enter any name + email below (stored locally in this file's memory only, never sent anywhere but to SEC).
-    <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
-      <input id="ua" placeholder="Your Name your@email.com" style="flex:1;min-width:240px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;color:var(--txt);padding:7px 10px;font-family:var(--mono);font-size:13px">
-      <button id="uaSave" style="background:var(--warn);color:#1a1300;border:none;border-radius:6px;padding:0 16px;font-weight:600;cursor:pointer">Save & Load Index</button>
+    <h2>⚙ Quick setup (one time)</h2>
+    <p>This terminal pulls <strong>live SEC filings</strong> (free, no key) + <strong>live market data</strong> from Finnhub (free key, 60 calls/min). Filings work without a key; quotes/metrics need the Finnhub key.</p>
+    <ol>
+      <li>Grab a free key at <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a> (no card, instant).</li>
+      <li>Paste it below along with your name + email (SEC requires an identifying User-Agent).</li>
+    </ol>
+    <div class="field">
+      <input id="finKey" placeholder="Finnhub API key (e.g. cxxxx…)">
+    </div>
+    <div class="field">
+      <input id="ua" placeholder="Your Name your@email.com  (for SEC)">
+      <button class="btn" style="background:var(--acc);color:#fff" id="saveCfg">Save & Launch</button>
+    </div>
+    <p id="cfgMsg" class="muted"></p>
+  </div>
+
+  <!-- FEED -->
+  <div class="view on" id="view-feed">
+    <div class="feedhead"><h1>Latest Filings</h1><span class="muted" id="feedStatus"></span></div>
+    <div class="chips" id="feedChips"></div>
+    <div id="feedBody"><div class="empty"><span class="spinner"></span> connecting to SEC EDGAR real-time feed…</div></div>
+    <button class="loadmore hidden" id="feedMore">Load more</button>
+  </div>
+
+  <!-- QUOTE -->
+  <div class="view" id="view-quote">
+    <div id="quoteBody"><div class="empty">Search a ticker to see its quote, financials, and filings.</div></div>
+  </div>
+
+  <!-- NEWS -->
+  <div class="view" id="view-news">
+    <div class="card"><h3>Market & Company News</h3><div id="newsBody"><div class="empty">Search a company to load its news, or showing general market news.</div></div></div>
+  </div>
+
+  <!-- INSIDERS -->
+  <div class="view" id="view-insiders">
+    <div class="card"><h3>Insider Transactions (Form 3/4/5)</h3>
+      <p class="muted" style="font-size:12px;margin-top:-6px">Search a company first, then this shows its insider buys/sells with sentiment.</p>
+      <div class="scroll"><table><thead><tr><th>Date</th><th>Insider</th><th>Type</th><th>Shares</th><th>Price</th><th>Value</th></tr></thead><tbody id="insBody"></tbody></table></div>
     </div>
   </div>
 
-  <div id="app" class="hidden">
-    <div class="co-head" id="coHead">
-      <div class="empty" style="padding:8px">Search for a company to begin.</div>
+  <!-- 13F -->
+  <div class="view" id="view-inst">
+    <div class="card"><h3>13F Institutional Ownership</h3>
+      <p class="muted" style="font-size:12px;margin-top:-6px">Institutional holders of the searched company (from 13-F filings).</p>
+      <div class="scroll"><table><thead><tr><th>Institution</th><th>Shares</th><th>Change</th><th>Value</th><th>Report Date</th></tr></thead><tbody id="instBody"></tbody></table></div>
     </div>
+  </div>
 
-    <div class="tabs" id="tabs">
-      <div class="tab active" data-tab="filings">Filings</div>
-      <div class="tab" data-tab="financials">Financials / XBRL</div>
-      <div class="tab" data-tab="insiders">Insider Trades (Form 4)</div>
-      <div class="tab" data-tab="fts">Full-Text Search</div>
+  <!-- EARNINGS -->
+  <div class="view" id="view-earnings">
+    <div class="card"><h3>Earnings Calendar — next 14 days</h3>
+      <div class="scroll"><table><thead><tr><th>Date</th><th>Symbol</th><th>Hour</th><th>EPS Est.</th><th>EPS Actual</th><th>Rev Est.</th></tr></thead><tbody id="earnBody"><tr><td colspan="6" class="empty"><span class="spinner"></span> loading…</td></tr></tbody></table></div>
     </div>
+  </div>
 
-    <!-- FILINGS -->
-    <div class="tabpane" id="pane-filings">
-      <div class="panel">
-        <h3>Filing History</h3>
-        <div class="filters">
-          <div class="chips" id="formChips"></div>
-          <input id="filingSearch" placeholder="filter by form/desc…" style="margin-left:auto">
-          <select id="yearFilter"><option value="">All years</option></select>
-        </div>
-        <div class="scroll">
-          <table>
-            <thead><tr><th>Form</th><th>Filed</th><th>Period</th><th>Description</th><th>Doc</th></tr></thead>
-            <tbody id="filingsBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-
-    <!-- FINANCIALS -->
-    <div class="tabpane hidden" id="pane-financials">
-      <div class="grid3" id="finStats"></div>
-      <div class="grid2">
-        <div class="panel"><h3>Revenue (annual)</h3><div id="chartRev"></div></div>
-        <div class="panel"><h3>Net Income (annual)</h3><div id="chartNI"></div></div>
-      </div>
-      <div class="panel">
-        <h3>XBRL Concept Explorer</h3>
-        <div class="filters">
-          <select id="conceptSel"></select>
-          <span class="muted" id="conceptMeta"></span>
-        </div>
-        <div class="scroll" style="max-height:380px">
-          <table><thead><tr><th>Period End</th><th>FY</th><th>Form</th><th>Value</th><th>Filed</th></tr></thead>
-          <tbody id="conceptBody"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- INSIDERS -->
-    <div class="tabpane hidden" id="pane-insiders">
-      <div class="panel">
-        <h3>Insider Transactions — Form 3/4/5</h3>
-        <div class="muted" style="margin-bottom:10px;font-size:12px">Latest ownership filings. Click a row to open the raw Form 4 on SEC.gov.</div>
-        <div class="scroll">
-          <table><thead><tr><th>Form</th><th>Filed</th><th>Insider / Filer</th><th>Accession</th><th>Doc</th></tr></thead>
-          <tbody id="insiderBody"></tbody></table>
-        </div>
-      </div>
-    </div>
-
-    <!-- FULL TEXT -->
-    <div class="tabpane hidden" id="pane-fts">
-      <div class="panel ftspanel">
-        <h3>Full-Text Search · all EDGAR filings since 2001</h3>
-        <div class="filters" style="margin-bottom:8px">
-          <input id="ftsQ" placeholder='Keyword or "exact phrase" (e.g. "going concern", climate risk)…'>
-        </div>
-        <div class="filters">
-          <input id="ftsForms" placeholder="Forms e.g. 10-K,8-K (optional)" style="max-width:220px">
-          <input id="ftsDateFrom" type="date" title="from">
-          <input id="ftsDateTo" type="date" title="to">
-          <label class="muted" style="font-size:12px"><input type="checkbox" id="ftsThisCo"> limit to current company</label>
-          <button id="ftsGo" style="background:var(--acc);color:#031018;border:none;border-radius:6px;padding:7px 16px;font-weight:600;cursor:pointer">Search</button>
-        </div>
-        <div class="muted" id="ftsCount" style="margin:10px 0;font-size:12px"></div>
-        <div class="scroll">
-          <table><thead><tr><th>Form</th><th>Filed</th><th>Company</th><th>Snippet / File</th></tr></thead>
-          <tbody id="ftsBody"></tbody></table>
-        </div>
-      </div>
-    </div>
+  <!-- WATCHLIST -->
+  <div class="view" id="view-watchlist">
+    <div class="card"><h3>My Watchlist</h3><div id="wlBody"><div class="empty">Star a stock from its quote page to add it here.</div></div></div>
   </div>
 </div>
 
-<footer>EDGAR//TERMINAL · data sourced live from the U.S. SEC EDGAR system (data.sec.gov, efts.sec.gov) · not affiliated with the SEC · informational use only</footer>
+<footer>FINTERM · filings from SEC EDGAR (data.sec.gov) · market data from Finnhub · informational use only, not investment advice</footer>
 
 <script>
-const SEC = {
-  ua: "", tickers: [], byTicker:{}, byCik:{}, cur:null, facts:null, submissions:null
-};
-const $ = s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const S={fin:'',ua:'',tickers:[],byTk:{},cur:null,wl:[],feed:[],feedFrom:0,searchMode:'entities'};
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const pad=c=>String(c).padStart(10,'0');
-const fmtN=n=>{ if(n==null||isNaN(n))return '—';
-  const a=Math.abs(n); if(a>=1e12)return (n/1e12).toFixed(2)+'T';
-  if(a>=1e9)return (n/1e9).toFixed(2)+'B'; if(a>=1e6)return (n/1e6).toFixed(2)+'M';
-  if(a>=1e3)return (n/1e3).toFixed(1)+'K'; return n.toLocaleString(); };
-const toast=(m,err)=>{const t=document.createElement('div');t.className='toast'+(err?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),4200);};
+const num=(n,d=2)=>n==null||n===''||isNaN(n)?'--':(+n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+const big=n=>{if(n==null||isNaN(n))return '--';const a=Math.abs(n);
+  if(a>=1e12)return (n/1e12).toFixed(2)+'T';if(a>=1e9)return (n/1e9).toFixed(2)+'B';
+  if(a>=1e6)return (n/1e6).toFixed(2)+'M';if(a>=1e3)return (n/1e3).toFixed(1)+'K';return num(n,0);};
+const toast=(m,e)=>{const t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),4500);};
+async function jget(url,ua){const r=await fetch(url,ua?{headers:{'User-Agent':ua}}:undefined);if(!r.ok)throw new Error(r.status);return r.json();}
+const fin=path=>jget('https://finnhub.io/api/v1'+path+(path.includes('?')?'&':'?')+'token='+S.fin);
+const sec=path=>jget('https://data.sec.gov'+path,S.ua);
 
-async function secFetch(url){
-  const r = await fetch(url,{headers:{'User-Agent':SEC.ua}});
-  if(!r.ok) throw new Error(r.status+' '+r.statusText);
-  return r.json();
+/* ---------- setup ---------- */
+function loadCfg(){ // pull from in-memory only (no localStorage in sandbox)
+  return false;
 }
-
-// ---- setup / ticker index ----
-$('#uaSave').onclick = async ()=>{
-  const v=$('#ua').value.trim();
-  if(!v||!v.includes('@')){toast('Enter a name and email, e.g. "Jane Doe jane@mail.com"',true);return;}
-  SEC.ua=v; $('#uaSave').innerHTML='<span class="spinner"></span> loading…';
+$('#saveCfg').onclick=async()=>{
+  const k=$('#finKey').value.trim(),u=$('#ua').value.trim();
+  if(!u.includes('@')){$('#cfgMsg').textContent='Enter a valid name + email for SEC.';return;}
+  S.fin=k;S.ua=u;
+  $('#saveCfg').innerHTML='<span class="spinner"></span>';
   try{
-    const data = await secFetch('https://www.sec.gov/files/company_tickers.json');
-    SEC.tickers = Object.values(data).map(o=>({t:o.ticker,n:o.title,c:o.cik_str}));
-    SEC.tickers.forEach(o=>{SEC.byTicker[o.t.toUpperCase()]=o;});
-    $('#setup').classList.add('hidden'); $('#app').classList.remove('hidden');
-    $('#status').innerHTML='live · '+SEC.tickers.length.toLocaleString()+' filers indexed';
-    toast('Loaded '+SEC.tickers.length.toLocaleString()+' SEC filers. Search a ticker.');
-  }catch(e){
-    $('#uaSave').textContent='Save & Load Index';
-    toast('Failed: '+e.message+'. SEC may block browser CORS — see note in chat.',true);
-  }
+    const tk=await sec('/files/company_tickers.json').catch(()=>jget('https://www.sec.gov/files/company_tickers.json',u));
+    S.tickers=Object.values(tk).map(o=>({t:o.ticker,n:o.title,c:o.cik_str}));
+    S.tickers.forEach(o=>S.byTk[o.t.toUpperCase()]=o);
+    $('#setup').style.display='none';
+    $('#feedStatus').textContent=S.tickers.length.toLocaleString()+' filers indexed';
+    loadFeed();loadEarnings();
+    toast('Launched. '+S.tickers.length.toLocaleString()+' SEC filers indexed.');
+  }catch(e){$('#cfgMsg').textContent='Failed: '+e.message+' (CORS may block company_tickers — try a different network).';$('#saveCfg').textContent='Save & Launch';}
 };
+$('#cfgBtn').onclick=()=>{$('#setup').style.display=$('#setup').style.display==='none'?'block':'none';};
 
-// ---- autocomplete ----
-const qel=$('#q'), sug=$('#suggest');
+/* ---------- nav ---------- */
+$$('.navtab').forEach(t=>t.onclick=()=>{
+  $$('.navtab').forEach(x=>x.classList.remove('on'));t.classList.add('on');
+  $$('.view').forEach(v=>v.classList.remove('on'));$('#view-'+t.dataset.view).classList.add('on');
+  if(t.dataset.view==='watchlist')renderWL();
+});
+function goView(v){$$('.navtab').forEach(x=>x.classList.toggle('on',x.dataset.view===v));
+  $$('.view').forEach(x=>x.classList.toggle('on',x.id==='view-'+v));}
+
+/* ---------- search ---------- */
+$$('.seg button').forEach(b=>b.onclick=()=>{$$('.seg button').forEach(x=>x.classList.remove('on'));b.classList.add('on');S.searchMode=b.dataset.mode;});
+const qel=$('#q'),sug=$('#suggest');
 qel.addEventListener('input',()=>{
-  const v=qel.value.trim().toUpperCase(); if(!v||v.length<1){sug.style.display='none';return;}
-  const hits=SEC.tickers.filter(o=>o.t.toUpperCase().startsWith(v)||o.n.toUpperCase().includes(v)).slice(0,12);
+  const v=qel.value.trim().toUpperCase();if(v.length<1){sug.style.display='none';return;}
+  const hits=S.tickers.filter(o=>o.t.toUpperCase().startsWith(v)||o.n.toUpperCase().includes(v)).slice(0,14);
   if(!hits.length){sug.style.display='none';return;}
-  sug.innerHTML=hits.map(o=>`<div data-cik="${o.c}"><span class="tk">${o.t}</span>${o.n}</div>`).join('');
+  sug.innerHTML=hits.map(o=>`<div data-tk="${o.t}" data-cik="${o.c}"><span class="tk">${o.t}</span><span class="nm">${o.n}</span><span class="ex">CIK ${o.c}</span></div>`).join('');
   sug.style.display='block';
-  $$('#suggest div').forEach(d=>d.onclick=()=>{loadCompany(+d.dataset.cik);sug.style.display='none';qel.value=d.querySelector('.tk').textContent;});
+  $$('#suggest div').forEach(d=>d.onclick=()=>{openTicker(d.dataset.tk,+d.dataset.cik);sug.style.display='none';});
 });
 document.addEventListener('click',e=>{if(!sug.contains(e.target)&&e.target!==qel)sug.style.display='none';});
-$('#go').onclick=()=>{
-  const v=qel.value.trim().toUpperCase(); const o=SEC.byTicker[v]||SEC.tickers.find(x=>x.n.toUpperCase().includes(v));
-  if(o)loadCompany(o.c); else toast('No match for "'+v+'"',true);
-};
-qel.addEventListener('keydown',e=>{if(e.key==='Enter'){$('#go').click();sug.style.display='none';}});
+qel.addEventListener('keydown',e=>{if(e.key==='Enter'){const v=qel.value.trim().toUpperCase();const o=S.byTk[v]||S.tickers.find(x=>x.n.toUpperCase().includes(v));if(o)openTicker(o.t,o.c);sug.style.display='none';}});
 
-// ---- tabs ----
-$$('.tab').forEach(t=>t.onclick=()=>{
-  $$('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active');
-  $$('.tabpane').forEach(p=>p.classList.add('hidden'));
-  $('#pane-'+t.dataset.tab).classList.remove('hidden');
-});
-
-// ---- load company ----
-async function loadCompany(cik){
-  $('#coHead').innerHTML='<span class="spinner"></span> &nbsp;loading filings…';
+/* ---------- LATEST FILINGS FEED (SEC real-time index) ---------- */
+const FORM_FILTERS=['4','8-K','10-K','10-Q','13F-HR','SC 13D','SC 13G','S-1','424B5','DEF 14A','3','SC 13D/A'];
+let feedActiveForm='';
+function feedFormClass(f){if(f==='4'||f==='3'||f==='5')return'f4';if(f.startsWith('8'))return'f8';if(f.startsWith('10'))return'f10';if(f.startsWith('13')||f.startsWith('SC 13'))return'f13';if(f.startsWith('S')||f.startsWith('424'))return'fS';return'';}
+async function loadFeed(reset=true){
+  if(reset){S.feed=[];S.feedFrom=0;$('#feedBody').innerHTML='<div class="empty"><span class="spinner"></span> loading real-time EDGAR index…';}
+  $('#feedChips').innerHTML='<span class="chip '+(!feedActiveForm?'on':'')+'" data-f="">ALL</span>'+FORM_FILTERS.map(f=>`<span class="chip ${feedActiveForm===f?'on':''}" data-f="${f}">${f}</span>`).join('');
+  $$('#feedChips .chip').forEach(c=>c.onclick=()=>{feedActiveForm=c.dataset.f;renderFeed();$$('#feedChips .chip').forEach(x=>x.classList.toggle('on',x.dataset.f===feedActiveForm));});
   try{
-    const sub = await secFetch(`https://data.sec.gov/submissions/CIK${pad(cik)}.json`);
-    SEC.cur={cik,name:sub.name}; SEC.submissions=sub;
-    renderHead(sub); renderFilings(sub); renderInsiders(sub);
-    loadFacts(cik);
-  }catch(e){ $('#coHead').innerHTML='<div class="empty">Error: '+e.message+'</div>'; }
-}
-
-function renderHead(s){
-  const t=s.tickers&&s.tickers.length?s.tickers.join(', '):'—';
-  const ex=s.exchanges&&s.exchanges.length?s.exchanges.join(', '):'—';
-  $('#coHead').innerHTML=`
-    <h1>${s.name}</h1>
-    <span class="badge">CIK ${s.cik}</span>
-    <span class="badge">${t}</span>
-    <span class="badge">${ex}</span>
-    <span class="badge">SIC ${s.sicDescription||s.sic||'—'}</span>
-    <span class="meta">${[s.addresses?.business?.city,s.addresses?.business?.stateOrCountry].filter(Boolean).join(', ')}</span>
-    <a class="meta" style="margin-left:auto" target="_blank" href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${s.cik}&type=&dateb=&owner=include&count=40">open on SEC.gov ↗</a>`;
-}
-
-// ---- filings ----
-let allFilings=[], activeForms=new Set();
-function renderFilings(s){
-  const r=s.filings.recent; allFilings=[];
-  for(let i=0;i<r.accessionNumber.length;i++){
-    allFilings.push({form:r.form[i],filed:r.filingDate[i],period:r.reportDate[i]||'',
-      desc:r.primaryDocDescription[i]||r.items[i]||'',acc:r.accessionNumber[i],
-      doc:r.primaryDocument[i],cik:s.cik});
+    // SEC real-time submissions: current/daily index via full-text recent API
+    const d=await jget('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&company=&dateb=&owner=include&count=100&output=atom',S.ua).catch(()=>null);
+    if(d){/* atom path not json; fall through to efts */}
+    // Use EDGAR full-text "latest" via efts
+    const r=await jget('https://efts.sec.gov/LATEST/search-index?q=&forms=4,8-K,10-K,10-Q,13F-HR&dateRange=custom&startdt='+isoDaysAgo(2)+'&enddt='+isoDaysAgo(0),S.ua);
+    const hits=(r.hits&&r.hits.hits)||[];
+    S.feed=hits.map(h=>{const s=h._source,id=h._id.split(':');
+      return{form:s.root_form||s.file_type,filed:s.file_date,time:'',acc:id[0],file:id[1]||'',
+        cik:+(s.ciks?.[0]||0),name:(s.display_names?.[0]||'').replace(/\s*\(.*?\)\s*$/,''),
+        tk:(s.display_names?.[0]||'').match(/\(([^)]+)\)/)?.[1]||'',desc:formDesc(s.root_form||s.file_type)};});
+    renderFeed();
+  }catch(e){
+    $('#feedBody').innerHTML='<div class="empty">Live feed blocked by browser CORS ('+e.message+').<br><br>The Quote / Insider / Earnings tabs use Finnhub and still work.<br>To unblock the SEC feed, run the tiny local proxy (ask in chat).</div>';
   }
-  const forms=[...new Set(allFilings.map(f=>f.form))].sort();
-  const common=['10-K','10-Q','8-K','4','3','DEF 14A','S-1','424B5','13F-HR','SC 13G','SC 13D'];
-  const ordered=[...common.filter(c=>forms.includes(c)),...forms.filter(f=>!common.includes(f))];
-  $('#formChips').innerHTML='<span class="chip on" data-form="__all">ALL</span>'+
-    ordered.map(f=>`<span class="chip" data-form="${f}">${f}</span>`).join('');
-  $$('#formChips .chip').forEach(c=>c.onclick=()=>{
-    const f=c.dataset.form;
-    if(f==='__all'){activeForms.clear();$$('#formChips .chip').forEach(x=>x.classList.remove('on'));c.classList.add('on');}
-    else{$('#formChips .chip[data-form="__all"]').classList.remove('on');
-      c.classList.toggle('on'); c.classList.contains('on')?activeForms.add(f):activeForms.delete(f);
-      if(!activeForms.size)$('#formChips .chip[data-form="__all"]').classList.add('on');}
-    drawFilings();
-  });
-  const yrs=[...new Set(allFilings.map(f=>f.filed.slice(0,4)))].sort().reverse();
-  $('#yearFilter').innerHTML='<option value="">All years</option>'+yrs.map(y=>`<option>${y}</option>`).join('');
-  drawFilings();
 }
-$('#filingSearch').oninput=drawFilings; $('#yearFilter').onchange=drawFilings;
-function drawFilings(){
-  const q=$('#filingSearch').value.toLowerCase(), yr=$('#yearFilter').value;
-  let rows=allFilings.filter(f=>{
-    if(activeForms.size && !activeForms.has(f.form))return false;
-    if(yr && !f.filed.startsWith(yr))return false;
-    if(q && !(f.form+f.desc+f.period).toLowerCase().includes(q))return false;
-    return true;
+function isoDaysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
+function formDesc(f){const m={'4':'Statement of changes in beneficial ownership of securities','3':'Initial statement of beneficial ownership','8-K':'Current report — material event','10-K':'Annual report','10-Q':'Quarterly report','13F-HR':'Quarterly institutional holdings report','SC 13D':'Beneficial ownership report (activist)','SC 13G':'Beneficial ownership report (passive)','S-1':'Registration statement','424B5':'Prospectus','DEF 14A':'Proxy statement'};return m[f]||f+' filing';}
+function renderFeed(){
+  let rows=S.feed.filter(f=>!feedActiveForm||f.form===feedActiveForm);
+  if(!rows.length){$('#feedBody').innerHTML='<div class="empty">No filings for this filter.</div>';return;}
+  const byDay={};rows.forEach(f=>{(byDay[f.filed]=byDay[f.filed]||[]).push(f);});
+  let html='';Object.keys(byDay).sort().reverse().forEach(day=>{
+    html+=`<div class="daysep">${day===isoDaysAgo(0)?'TODAY':day}</div>`;
+    byDay[day].forEach(f=>{
+      const url=`https://www.sec.gov/Archives/edgar/data/${f.cik}/${f.acc.replace(/-/g,'')}/${f.file}`;
+      html+=`<div class="filing"><div class="top">
+        <div class="formtag ${feedFormClass(f.form)}">${f.form.replace(/-.*/,'').slice(0,3)}</div>
+        <div class="desc">${f.desc}</div>
+        <div class="time">${f.filed}</div>
+        <div class="acts"><a href="${url}" target="_blank">Link ↗</a></div></div>
+        <div class="ent"><span class="tk" onclick="openTicker('${f.tk}',${f.cik})">${f.tk||'CIK '+f.cik}</span><div class="nm">${f.name}</div></div></div>`;
+    });
   });
-  $('#filingsBody').innerHTML=rows.length?rows.map(f=>{
-    const url=`https://www.sec.gov/Archives/edgar/data/${+f.cik}/${f.acc.replace(/-/g,'')}/${f.doc}`;
-    return `<tr><td class="ftype">${f.form}</td><td>${f.filed}</td><td class="muted">${f.period}</td>
-      <td>${f.desc||'<span class="muted">—</span>'}</td>
-      <td>${f.doc?`<a target="_blank" href="${url}">view ↗</a>`:'<span class="muted">—</span>'}</td></tr>`;
-  }).join(''):'<tr><td colspan="5" class="empty">No filings match.</td></tr>';
+  $('#feedBody').innerHTML=html;
 }
 
-// ---- insiders ----
-function renderInsiders(s){
-  const r=s.filings.recent; let rows=[];
-  for(let i=0;i<r.form.length;i++){
-    if(['3','4','5','4/A','3/A'].includes(r.form[i])){
-      rows.push({form:r.form[i],filed:r.filingDate[i],acc:r.accessionNumber[i],doc:r.primaryDocument[i]});
-    }
-  }
-  $('#insiderBody').innerHTML=rows.length?rows.slice(0,200).map(f=>{
-    const url=`https://www.sec.gov/Archives/edgar/data/${+s.cik}/${f.acc.replace(/-/g,'')}/${f.doc}`;
-    const idx=`https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${s.cik}&type=4`;
-    return `<tr><td class="ftype">${f.form}</td><td>${f.filed}</td>
-      <td class="muted">see filing detail</td><td class="muted" style="font-family:var(--mono);font-size:11px">${f.acc}</td>
-      <td><a target="_blank" href="${url}">Form ↗</a></td></tr>`;
-  }).join(''):'<tr><td colspan="5" class="empty">No insider (Form 3/4/5) filings found.</td></tr>';
+/* ---------- QUOTE PAGE ---------- */
+async function openTicker(tk,cik){
+  qel.value=tk;goView('quote');
+  $('#quoteBody').innerHTML='<div class="empty"><span class="spinner"></span> loading '+tk+'…</div>';
+  S.cur={tk,cik};
+  const tasks=await Promise.allSettled([
+    fin('/quote?symbol='+tk),
+    fin('/stock/profile2?symbol='+tk),
+    fin('/stock/metric?symbol='+tk+'&metric=all'),
+    cik?sec('/submissions/CIK'+pad(cik)+'.json'):Promise.reject('no cik')
+  ]);
+  const [q,prof,metric,sub]=tasks.map(t=>t.status==='fulfilled'?t.value:null);
+  renderQuote(tk,q,prof,metric,sub);
+  if(sub)renderInsidersTab(tk),renderFilingsList(sub);
+  loadInsiders(tk);loadInst(tk);loadNews(tk);
+}
+function renderQuote(tk,q,prof,m,sub){
+  const mt=(m&&m.metric)||{};
+  const price=q?.c, chg=q?.d, chgp=q?.dp, up=(chg||0)>=0;
+  const isStar=S.wl.some(w=>w.tk===tk);
+  const lo=mt['52WeekLow'],hi=mt['52WeekHigh'];
+  const pos=lo!=null&&hi!=null&&hi>lo?Math.max(0,Math.min(100,((price-lo)/(hi-lo))*100)):null;
+  const cell=(k,v)=>`<div class="cell"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  $('#quoteBody').innerHTML=`
+    <div class="qhead">
+      <div>
+        <div class="nm">${prof?.name||sub?.name||tk} ${prof?.exchange?'· '+prof.exchange:''} ${prof?.finnhubIndustry?'· '+prof.finnhubIndustry:''}</div>
+        <h1>${tk} <button class="starbtn ${isStar?'on':''}" id="star">★</button></h1>
+      </div>
+      <div class="qprice"><span class="px">${price!=null?num(price):'--'}</span>
+        <span class="chg ${up?'up':'down'}">${chg!=null?(up?'+':'')+num(chg)+' ('+(up?'+':'')+num(chgp)+'%)':''}</span></div>
+      <div class="qmeta">${prof?.ipo?'IPO '+prof.ipo:''} ${prof?.weburl?'· <a href="'+prof.weburl+'" target="_blank">website ↗</a>':''} ${cik?'· <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK='+(S.cur.cik)+'&type=&count=40" target="_blank">SEC ↗</a>':''}</div>
+    </div>
+    ${lo!=null&&hi!=null?`<div class="range52"><div class="lbl" style="left:0">${num(lo)}</div><div class="lbl" style="right:0">${num(hi)}</div><div class="track"></div>${pos!=null?`<div class="fillpos" style="left:${pos}%"></div>`:''}</div>`:''}
+    <div class="statgrid">
+      ${cell('Previous Close',q?num(q.pc):'--')}
+      ${cell('Open',q?num(q.o):'--')}
+      ${cell("Day's Low",q?num(q.l):'--')}
+      ${cell("Day's High",q?num(q.h):'--')}
+      ${cell('52 Wk Low',num(lo))}
+      ${cell('52 Wk High',num(hi))}
+      ${cell('Market Cap',prof?.marketCapitalization?'$'+big(prof.marketCapitalization*1e6):'--')}
+      ${cell('Shares Out',prof?.shareOutstanding?big(prof.shareOutstanding*1e6):'--')}
+      ${cell('Beta',num(mt.beta))}
+      ${cell('PE (TTM)',num(mt.peTTM))}
+      ${cell('EPS (TTM)',num(mt.epsTTM))}
+      ${cell('PB',num(mt.pbAnnual))}
+      ${cell('Div Yield',mt.currentDividendYieldTTM!=null?num(mt.currentDividendYieldTTM)+'%':'--')}
+      ${cell('ROE',mt.roeTTM!=null?num(mt.roeTTM)+'%':'--')}
+      ${cell('Gross Margin',mt.grossMarginTTM!=null?num(mt.grossMarginTTM)+'%':'--')}
+      ${cell('Net Margin',mt.netProfitMarginTTM!=null?num(mt.netProfitMarginTTM)+'%':'--')}
+      ${cell('Rev/Share',num(mt.revenuePerShareTTM))}
+      ${cell('Curr Ratio',num(mt.currentRatioAnnual))}
+      ${cell('10D Avg Vol',mt['10DayAverageTradingVolume']?big(mt['10DayAverageTradingVolume']*1e6):'--')}
+      ${cell('3M Avg Vol',mt['3MonthAverageTradingVolume']?big(mt['3MonthAverageTradingVolume']*1e6):'--')}
+    </div>
+    <div class="cards">
+      <div>
+        <div class="card"><h3>Recent SEC Filings</h3><div class="scroll" style="max-height:340px"><table><thead><tr><th>Form</th><th>Filed</th><th>Period</th><th>Doc</th></tr></thead><tbody id="qFilings"><tr><td colspan="4" class="empty">${sub?'':'no SEC link'}</td></tr></tbody></table></div></div>
+      </div>
+      <div>
+        <div class="card"><h3>Company Profile</h3>
+          <div style="font-size:13px;line-height:1.7">
+            <div><span class="muted">Country</span> · ${prof?.country||'--'}</div>
+            <div><span class="muted">Currency</span> · ${prof?.currency||'--'}</div>
+            <div><span class="muted">Exchange</span> · ${prof?.exchange||'--'}</div>
+            <div><span class="muted">Industry</span> · ${prof?.finnhubIndustry||'--'}</div>
+            <div><span class="muted">IPO</span> · ${prof?.ipo||'--'}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  $('#star').onclick=()=>toggleWL(tk,prof?.name||tk);
+  if(sub)renderFilingsList(sub);
+  if(!S.fin)$('#quoteBody').insertAdjacentHTML('afterbegin','<div class="card" style="border-color:var(--gold)">Add a free Finnhub key (⚙ API Key) to load price & metric data. SEC filings below work without it.</div>');
+}
+function renderFilingsList(sub){
+  const r=sub.filings.recent;let rows=[];
+  for(let i=0;i<r.form.length&&rows.length<40;i++)rows.push({f:r.form[i],d:r.filingDate[i],p:r.reportDate[i]||'',acc:r.accessionNumber[i],doc:r.primaryDocument[i]});
+  const el=$('#qFilings');if(!el)return;
+  el.innerHTML=rows.map(x=>{const url=`https://www.sec.gov/Archives/edgar/data/${+S.cur.cik}/${x.acc.replace(/-/g,'')}/${x.doc}`;
+    return `<tr><td class="ftype">${x.f}</td><td>${x.d}</td><td class="muted">${x.p}</td><td><a href="${url}" target="_blank">view ↗</a></td></tr>`;}).join('');
 }
 
-// ---- financials / XBRL ----
-async function loadFacts(cik){
-  $('#finStats').innerHTML='<div class="stat"><span class="spinner"></span> loading XBRL…</div>';
-  try{
-    const f=await secFetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${pad(cik)}.json`);
-    SEC.facts=f; renderFinancials(f);
-  }catch(e){ $('#finStats').innerHTML='<div class="stat"><span class="lbl">XBRL</span><div class="muted">No structured financial data available ('+e.message+').</div></div>'; }
+/* ---------- INSIDERS ---------- */
+async function loadInsiders(tk){
+  $('#insBody').innerHTML='<tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr>';
+  try{const d=await fin('/stock/insider-transactions?symbol='+tk);
+    const rows=(d.data||[]).slice(0,80);
+    $('#insBody').innerHTML=rows.length?rows.map(t=>{
+      const buy=t.transactionCode==='P'||(t.change>0);
+      return `<tr><td>${t.transactionDate||t.filingDate}</td><td>${t.name}</td>
+        <td><span class="pill ${buy?'buy':'sell'}">${buy?'BUY':'SELL'} ${t.transactionCode||''}</span></td>
+        <td class="${buy?'up':'down'}">${big(Math.abs(t.change||t.share||0))}</td>
+        <td>${t.transactionPrice?'$'+num(t.transactionPrice):'--'}</td>
+        <td>${t.transactionPrice&&t.change?'$'+big(Math.abs(t.change*t.transactionPrice)):'--'}</td></tr>`;
+    }).join(''):'<tr><td colspan="6" class="empty">No insider data.</td></tr>';
+  }catch(e){$('#insBody').innerHTML='<tr><td colspan="6" class="empty">'+(S.fin?'Error: '+e.message:'Add a Finnhub key to load insider data.')+'</td></tr>';}
 }
-function pick(tags,unit='USD'){
-  const g=SEC.facts.facts['us-gaap']||{};
-  for(const t of tags){ if(g[t]&&g[t].units&&g[t].units[unit]) return {tag:t,data:g[t].units[unit],label:g[t].label}; }
-  return null;
-}
-function annual(series){ // dedupe to FY values
-  const m={};
-  series.filter(d=>d.form==='10-K'&&d.fp==='FY'&&d.fy).forEach(d=>{m[d.fy]=d;});
-  return Object.values(m).sort((a,b)=>a.fy-b.fy);
-}
-function renderFinancials(f){
-  const rev=pick(['Revenues','RevenueFromContractWithCustomerExcludingAssessedTax','SalesRevenueNet']);
-  const ni=pick(['NetIncomeLoss']);
-  const assets=pick(['Assets']);
-  const liab=pick(['Liabilities']);
-  const cash=pick(['CashAndCashEquivalentsAtCarryingValue']);
-  const eps=pick(['EarningsPerShareDiluted'],'USD/shares');
-  const shares=pick(['CommonStockSharesOutstanding'],'shares')||pick(['EntityCommonStockSharesOutstanding'],'shares');
-  const latest=s=>s&&s.data.length?s.data[s.data.length-1].val:null;
-  const stat=(lbl,val,sub)=>`<div class="stat"><div class="lbl">${lbl}</div><div class="val">${val}</div><div class="sub">${sub||''}</div></div>`;
-  $('#finStats').innerHTML=[
-    stat('Revenue (TTM/last)', rev?'$'+fmtN(latest(rev)):'—', rev?rev.tag:''),
-    stat('Net Income (last)', ni?'$'+fmtN(latest(ni)):'—', ni?ni.tag:''),
-    stat('Total Assets', assets?'$'+fmtN(latest(assets)):'—',''),
-    stat('Total Liabilities', liab?'$'+fmtN(latest(liab)):'—',''),
-    stat('Cash & Equiv.', cash?'$'+fmtN(latest(cash)):'—',''),
-    stat('Diluted EPS', eps?'$'+(latest(eps)||0).toFixed(2):'—',''),
-  ].join('');
-  if(rev)barChart('#chartRev',annual(rev.data),'#4da3ff'); else $('#chartRev').innerHTML='<div class="empty">No revenue data</div>';
-  if(ni)barChart('#chartNI',annual(ni.data),'#34d399'); else $('#chartNI').innerHTML='<div class="empty">No net income data</div>';
-  // concept explorer
-  const g=f.facts['us-gaap']||{};
-  const concepts=Object.keys(g).filter(k=>g[k].units&&(g[k].units.USD||g[k].units['USD/shares']||g[k].units.shares)).sort();
-  $('#conceptSel').innerHTML=concepts.map(c=>`<option value="${c}">${c}</option>`).join('');
-  $('#conceptSel').onchange=drawConcept;
-  if(concepts.length){ $('#conceptSel').value=rev?rev.tag:concepts[0]; drawConcept(); }
-}
-function drawConcept(){
-  const c=$('#conceptSel').value, node=SEC.facts.facts['us-gaap'][c];
-  const unit=Object.keys(node.units)[0], series=node.units[unit];
-  $('#conceptMeta').textContent=`${node.label||''} · unit: ${unit} · ${series.length} data points`;
-  const rows=[...series].reverse().slice(0,120);
-  $('#conceptBody').innerHTML=rows.map(d=>`<tr><td>${d.end}</td><td>${d.fy||''} ${d.fp||''}</td>
-    <td class="ftype">${d.form}</td><td>${unit.includes('shares')&&!unit.includes('/')?fmtN(d.val):(unit==='USD'?'$'+fmtN(d.val):d.val)}</td>
-    <td class="muted">${d.filed}</td></tr>`).join('');
-}
-function barChart(sel,data,color){
-  if(!data.length){$(sel).innerHTML='<div class="empty">no data</div>';return;}
-  const W=Math.max(320,$(sel).clientWidth||480),H=200,pad=34;
-  const vals=data.map(d=>d.val), max=Math.max(...vals,0), min=Math.min(...vals,0);
-  const span=(max-min)||1, bw=(W-pad*2)/data.length*0.7, gap=(W-pad*2)/data.length;
-  const y=v=>H-pad-((v-min)/span)*(H-pad*1.4);
-  let bars='',labels='';
-  data.forEach((d,i)=>{
-    const x=pad+i*gap+gap*0.15, y0=y(0), yv=y(d.val);
-    const top=Math.min(y0,yv), h=Math.abs(y0-yv);
-    bars+=`<rect x="${x}" y="${top}" width="${bw}" height="${h}" rx="2" fill="${d.val<0?'#f87171':color}"><title>${d.fy}: ${fmtN(d.val)}</title></rect>`;
-    labels+=`<text x="${x+bw/2}" y="${H-pad+14}" text-anchor="middle">${d.fy}</text>`;
-    labels+=`<text x="${x+bw/2}" y="${yv-(d.val<0?-12:5)}" text-anchor="middle" style="fill:${color}">${fmtN(d.val)}</text>`;
-  });
-  const zy=y(0);
-  $(sel).innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%"><line x1="${pad}" y1="${zy}" x2="${W-pad}" y2="${zy}" stroke="#222c3d"/>${bars}${labels}</svg>`;
+function renderInsidersTab(){}
+
+/* ---------- 13F ---------- */
+async function loadInst(tk){
+  $('#instBody').innerHTML='<tr><td colspan="5" class="empty"><span class="spinner"></span></td></tr>';
+  try{const d=await fin('/institutional-ownership?symbol='+tk+'&from='+isoDaysAgo(200)+'&to='+isoDaysAgo(0));
+    const data=(d.data&&d.data[0]&&d.data[0].ownership)||[];
+    const rows=data.sort((a,b)=>b.value-a.value).slice(0,60);
+    $('#instBody').innerHTML=rows.length?rows.map(o=>`<tr><td>${o.name}</td><td>${big(o.share)}</td>
+      <td class="${o.change>=0?'up':'down'}">${o.change>=0?'+':''}${big(o.change)}</td>
+      <td>$${big(o.value*1000)}</td><td class="muted">${d.data[0].reportDate||''}</td></tr>`).join('')
+      :'<tr><td colspan="5" class="empty">No 13F data (often premium-only on free tier).</td></tr>';
+  }catch(e){$('#instBody').innerHTML='<tr><td colspan="5" class="empty">'+(S.fin?'13F data may require a premium Finnhub plan.':'Add a Finnhub key.')+'</td></tr>';}
 }
 
-// ---- full text search ----
-$('#ftsGo').onclick=async ()=>{
-  const q=$('#ftsQ').value.trim(); if(!q){toast('Enter a search term',true);return;}
-  $('#ftsBody').innerHTML='<tr><td colspan="4" class="empty"><span class="spinner"></span> searching EDGAR…</td></tr>';
-  const params=new URLSearchParams(); params.set('q',q);
-  const forms=$('#ftsForms').value.trim(); if(forms)params.set('forms',forms);
-  if($('#ftsDateFrom').value)params.set('dateRange','custom'),params.set('startdt',$('#ftsDateFrom').value);
-  if($('#ftsDateTo').value)params.set('enddt',$('#ftsDateTo').value);
-  if($('#ftsThisCo').checked&&SEC.cur)params.set('ciks',pad(SEC.cur.cik));
-  try{
-    const r=await fetch('https://efts.sec.gov/LATEST/search-index?'+params.toString(),{headers:{'User-Agent':SEC.ua}});
-    if(!r.ok)throw new Error(r.status);
-    const d=await r.json(); const hits=d.hits.hits||[];
-    $('#ftsCount').textContent=`${(d.hits.total?.value||hits.length).toLocaleString()} total matches · showing ${hits.length}`;
-    $('#ftsBody').innerHTML=hits.length?hits.map(h=>{
-      const s=h._source, id=h._id.split(':'), acc=id[0], file=id[1]||'';
-      const cikN=+(s.ciks?.[0]||0);
-      const url=`https://www.sec.gov/Archives/edgar/data/${cikN}/${acc.replace(/-/g,'')}/${file}`;
-      return `<tr><td class="ftype">${s.root_form||s.file_type||''}</td><td>${s.file_date||''}</td>
-        <td>${(s.display_names||[]).join(', ')}</td>
-        <td><a target="_blank" href="${url}">${file||'open'} ↗</a></td></tr>`;
-    }).join(''):'<tr><td colspan="4" class="empty">No matches.</td></tr>';
-  }catch(e){ $('#ftsBody').innerHTML='<tr><td colspan="4" class="empty">Search failed: '+e.message+' (efts may block browser CORS — see note).</td></tr>'; }
-};
-$('#ftsQ').addEventListener('keydown',e=>{if(e.key==='Enter')$('#ftsGo').click();});
+/* ---------- NEWS ---------- */
+async function loadNews(tk){
+  try{const d=await fin('/company-news?symbol='+tk+'&from='+isoDaysAgo(14)+'&to='+isoDaysAgo(0));
+    const rows=(d||[]).slice(0,30);
+    $('#newsBody').innerHTML=rows.length?rows.map(a=>`<a class="newsitem" href="${a.url}" target="_blank" style="text-decoration:none">
+      ${a.image?`<img src="${a.image}" onerror="this.style.display='none'">`:''}
+      <div><div class="h">${a.headline}</div><div class="s">${a.source} · ${new Date(a.datetime*1000).toLocaleDateString()}</div></div></a>`).join('')
+      :'<div class="empty">No recent news.</div>';
+  }catch(e){$('#newsBody').innerHTML='<div class="empty">'+(S.fin?'News error.':'Add a Finnhub key for news.')+'</div>';}
+}
+
+/* ---------- EARNINGS ---------- */
+async function loadEarnings(){
+  if(!S.fin){$('#earnBody').innerHTML='<tr><td colspan="6" class="empty">Add a Finnhub key for the earnings calendar.</td></tr>';return;}
+  try{const d=await fin('/calendar/earnings?from='+isoDaysAgo(0)+'&to='+isoDaysAgo(-14));
+    const rows=(d.earningsCalendar||[]).slice(0,120);
+    $('#earnBody').innerHTML=rows.length?rows.map(e=>`<tr><td>${e.date}</td><td class="ftype" style="cursor:pointer" onclick="openTicker('${e.symbol}',(S.byTk['${e.symbol}']||{}).c)">${e.symbol}</td>
+      <td class="muted">${e.hour||''}</td><td>${e.epsEstimate??'--'}</td><td>${e.epsActual??'--'}</td><td>${e.revenueEstimate?'$'+big(e.revenueEstimate):'--'}</td></tr>`).join('')
+      :'<tr><td colspan="6" class="empty">No earnings scheduled.</td></tr>';
+  }catch(e){$('#earnBody').innerHTML='<tr><td colspan="6" class="empty">Earnings error: '+e.message+'</td></tr>';}
+}
+
+/* ---------- WATCHLIST ---------- */
+function toggleWL(tk,name){
+  const i=S.wl.findIndex(w=>w.tk===tk);
+  if(i>=0)S.wl.splice(i,1);else S.wl.push({tk,name,cik:(S.byTk[tk]||{}).c});
+  const b=$('#star');if(b)b.classList.toggle('on',S.wl.some(w=>w.tk===tk));
+  toast(i>=0?tk+' removed from watchlist':tk+' added to watchlist');
+}
+async function renderWL(){
+  if(!S.wl.length){$('#wlBody').innerHTML='<div class="empty">Star a stock from its quote page to add it here.</div>';return;}
+  $('#wlBody').innerHTML='<div class="empty"><span class="spinner"></span></div>';
+  const quotes=await Promise.allSettled(S.wl.map(w=>fin('/quote?symbol='+w.tk)));
+  $('#wlBody').innerHTML=S.wl.map((w,i)=>{
+    const q=quotes[i].status==='fulfilled'?quotes[i].value:null;const up=(q?.d||0)>=0;
+    return `<div class="wl-row" onclick="openTicker('${w.tk}',${w.cik||'null'})">
+      <span class="ftype" style="min-width:70px">${w.tk}</span>
+      <span class="muted" style="flex:1">${w.name}</span>
+      <span style="font-family:var(--mono)">${q?num(q.c):'--'}</span>
+      <span class="${up?'up':'down'}" style="font-family:var(--mono);min-width:90px;text-align:right">${q?(up?'+':'')+num(q.dp)+'%':''}</span>
+    </div>`;
+  }).join('');
+}
+window.openTicker=openTicker;window.S=S;
 </script>
 </body>
 </html>
