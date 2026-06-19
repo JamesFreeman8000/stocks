@@ -144,7 +144,7 @@ footer{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono)
       <div id="suggest"></div>
     </div>
     <div class="hbtns">
-      <button class="btn ghost" id="cfgBtn">⚙ API Key</button>
+      <button class="btn ghost" id="cfgBtn">⚙ Backend</button>
       <button class="btn gold">Upgrade</button>
       <div class="avatar">J</div>
     </div>
@@ -162,20 +162,14 @@ footer{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono)
 
 <div class="wrap">
   <!-- SETUP -->
-  <div class="setup" id="setup">
-    <h2>⚙ Quick setup (one time)</h2>
-    <p>This terminal pulls <strong>live SEC filings</strong> (free, no key) + <strong>live market data</strong> from Finnhub (free key, 60 calls/min). Filings work without a key; quotes/metrics need the Finnhub key.</p>
-    <ol>
-      <li>Grab a free key at <a href="https://finnhub.io/register" target="_blank">finnhub.io/register</a> (no card, instant).</li>
-      <li>Paste it below along with your name + email (SEC requires an identifying User-Agent).</li>
-    </ol>
+  <div class="setup" id="setup" style="display:none">
+    <h2>⚙ Connect to backend</h2>
+    <p>This terminal talks to your free Cloudflare Worker, which holds the Finnhub key server-side. Paste your deployed Worker URL once.</p>
     <div class="field">
-      <input id="finKey" placeholder="Finnhub API key (e.g. cxxxx…)">
+      <input id="beUrl" placeholder="https://finterm-proxy.yourname.workers.dev">
+      <button class="btn" style="background:var(--acc);color:#fff" id="saveCfg">Connect</button>
     </div>
-    <div class="field">
-      <input id="ua" placeholder="Your Name your@email.com  (for SEC)">
-      <button class="btn" style="background:var(--acc);color:#fff" id="saveCfg">Save & Launch</button>
-    </div>
+    <p class="muted" style="font-size:12px">Tip: hardcode this URL in the <code>API_BASE</code> line near the top of the script and this box never appears again.</p>
     <p id="cfgMsg" class="muted"></p>
   </div>
 
@@ -229,7 +223,12 @@ footer{text-align:center;color:var(--dim);font-size:11px;font-family:var(--mono)
 <footer>FINTERM · filings from SEC EDGAR (data.sec.gov) · market data from Finnhub · informational use only, not investment advice</footer>
 
 <script>
-const S={fin:'',ua:'',tickers:[],byTk:{},cur:null,wl:[],feed:[],feedFrom:0,searchMode:'entities'};
+/* ▼▼▼ PASTE YOUR DEPLOYED WORKER URL HERE (no trailing slash) ▼▼▼
+   e.g. const API_BASE = "https://finterm-proxy.yourname.workers.dev";
+   If you leave it blank, the app shows a one-time box asking for it. */
+let API_BASE = "";
+
+const S={tickers:[],byTk:{},cur:null,wl:[],feed:[],feedFrom:0,searchMode:'entities'};
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const pad=c=>String(c).padStart(10,'0');
 const num=(n,d=2)=>n==null||n===''||isNaN(n)?'--':(+n).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
@@ -237,28 +236,38 @@ const big=n=>{if(n==null||isNaN(n))return '--';const a=Math.abs(n);
   if(a>=1e12)return (n/1e12).toFixed(2)+'T';if(a>=1e9)return (n/1e9).toFixed(2)+'B';
   if(a>=1e6)return (n/1e6).toFixed(2)+'M';if(a>=1e3)return (n/1e3).toFixed(1)+'K';return num(n,0);};
 const toast=(m,e)=>{const t=document.createElement('div');t.className='toast'+(e?' err':'');t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),4500);};
-async function jget(url,ua){const r=await fetch(url,ua?{headers:{'User-Agent':ua}}:undefined);if(!r.ok)throw new Error(r.status);return r.json();}
-const fin=path=>jget('https://finnhub.io/api/v1'+path+(path.includes('?')?'&':'?')+'token='+S.fin);
-const sec=path=>jget('https://data.sec.gov'+path,S.ua);
+async function jget(url){const r=await fetch(url);if(!r.ok)throw new Error(r.status);return r.json();}
+const fin=path=>jget(API_BASE+'/fin'+path);
+const sec=path=>jget(API_BASE+'/sec'+path.replace(/^\//,'/'));
+const efts=path=>jget(API_BASE+'/efts'+path);
+const quoteApi=tk=>jget(API_BASE+'/quote?symbol='+encodeURIComponent(tk));
+const chartApi=(tk,range)=>jget(API_BASE+'/chart?symbol='+encodeURIComponent(tk)+'&range='+range);
 
 /* ---------- setup ---------- */
-function loadCfg(){ // pull from in-memory only (no localStorage in sandbox)
-  return false;
-}
-$('#saveCfg').onclick=async()=>{
-  const k=$('#finKey').value.trim(),u=$('#ua').value.trim();
-  if(!u.includes('@')){$('#cfgMsg').textContent='Enter a valid name + email for SEC.';return;}
-  S.fin=k;S.ua=u;
-  $('#saveCfg').innerHTML='<span class="spinner"></span>';
+async function boot(){
+  if(!API_BASE){
+    $('#setup').style.display='block';
+    return;
+  }
+  $('#setup').style.display='none';
   try{
-    const tk=await sec('/files/company_tickers.json').catch(()=>jget('https://www.sec.gov/files/company_tickers.json',u));
+    const tk=await jget(API_BASE+'/tickers');
     S.tickers=Object.values(tk).map(o=>({t:o.ticker,n:o.title,c:o.cik_str}));
     S.tickers.forEach(o=>S.byTk[o.t.toUpperCase()]=o);
-    $('#setup').style.display='none';
     $('#feedStatus').textContent=S.tickers.length.toLocaleString()+' filers indexed';
     loadFeed();loadEarnings();
-    toast('Launched. '+S.tickers.length.toLocaleString()+' SEC filers indexed.');
-  }catch(e){$('#cfgMsg').textContent='Failed: '+e.message+' (CORS may block company_tickers — try a different network).';$('#saveCfg').textContent='Save & Launch';}
+  }catch(e){
+    $('#setup').style.display='block';
+    $('#cfgMsg').textContent='Could not reach backend at '+API_BASE+' ('+e.message+'). Check the URL.';
+  }
+}
+$('#saveCfg').onclick=async()=>{
+  const u=$('#beUrl').value.trim().replace(/\/$/,'');
+  if(!u.startsWith('http')){$('#cfgMsg').textContent='Enter your Worker URL, e.g. https://finterm-proxy.you.workers.dev';return;}
+  API_BASE=u;$('#saveCfg').innerHTML='<span class="spinner"></span>';
+  await boot();
+  $('#saveCfg').textContent='Connect';
+  if(S.tickers.length)toast('Connected. '+S.tickers.length.toLocaleString()+' filers indexed.');
 };
 $('#cfgBtn').onclick=()=>{$('#setup').style.display=$('#setup').style.display==='none'?'block':'none';};
 
@@ -294,11 +303,7 @@ async function loadFeed(reset=true){
   $('#feedChips').innerHTML='<span class="chip '+(!feedActiveForm?'on':'')+'" data-f="">ALL</span>'+FORM_FILTERS.map(f=>`<span class="chip ${feedActiveForm===f?'on':''}" data-f="${f}">${f}</span>`).join('');
   $$('#feedChips .chip').forEach(c=>c.onclick=()=>{feedActiveForm=c.dataset.f;renderFeed();$$('#feedChips .chip').forEach(x=>x.classList.toggle('on',x.dataset.f===feedActiveForm));});
   try{
-    // SEC real-time submissions: current/daily index via full-text recent API
-    const d=await jget('https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=&company=&dateb=&owner=include&count=100&output=atom',S.ua).catch(()=>null);
-    if(d){/* atom path not json; fall through to efts */}
-    // Use EDGAR full-text "latest" via efts
-    const r=await jget('https://efts.sec.gov/LATEST/search-index?q=&forms=4,8-K,10-K,10-Q,13F-HR&dateRange=custom&startdt='+isoDaysAgo(2)+'&enddt='+isoDaysAgo(0),S.ua);
+    const r=await efts('/search-index?q=&forms=4,8-K,10-K,10-Q,13F-HR&dateRange=custom&startdt='+isoDaysAgo(2)+'&enddt='+isoDaysAgo(0));
     const hits=(r.hits&&r.hits.hits)||[];
     S.feed=hits.map(h=>{const s=h._source,id=h._id.split(':');
       return{form:s.root_form||s.file_type,filed:s.file_date,time:'',acc:id[0],file:id[1]||'',
@@ -306,7 +311,7 @@ async function loadFeed(reset=true){
         tk:(s.display_names?.[0]||'').match(/\(([^)]+)\)/)?.[1]||'',desc:formDesc(s.root_form||s.file_type)};});
     renderFeed();
   }catch(e){
-    $('#feedBody').innerHTML='<div class="empty">Live feed blocked by browser CORS ('+e.message+').<br><br>The Quote / Insider / Earnings tabs use Finnhub and still work.<br>To unblock the SEC feed, run the tiny local proxy (ask in chat).</div>';
+    $('#feedBody').innerHTML='<div class="empty">Feed error ('+e.message+'). Check the backend URL is correct and deployed.</div>';
   }
 }
 function isoDaysAgo(n){const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().slice(0,10);}
@@ -336,14 +341,15 @@ async function openTicker(tk,cik){
   $('#quoteBody').innerHTML='<div class="empty"><span class="spinner"></span> loading '+tk+'…</div>';
   S.cur={tk,cik};
   const tasks=await Promise.allSettled([
-    fin('/quote?symbol='+tk),
+    quoteApi(tk),
     fin('/stock/profile2?symbol='+tk),
     fin('/stock/metric?symbol='+tk+'&metric=all'),
     cik?sec('/submissions/CIK'+pad(cik)+'.json'):Promise.reject('no cik')
   ]);
   const [q,prof,metric,sub]=tasks.map(t=>t.status==='fulfilled'?t.value:null);
   renderQuote(tk,q,prof,metric,sub);
-  if(sub)renderInsidersTab(tk),renderFilingsList(sub);
+  if(sub)renderFilingsList(sub);
+  loadChart(tk,'1Y');
   loadInsiders(tk);loadInst(tk);loadNews(tk);
 }
 function renderQuote(tk,q,prof,m,sub){
@@ -360,7 +366,12 @@ function renderQuote(tk,q,prof,m,sub){
         <h1>${tk} <button class="starbtn ${isStar?'on':''}" id="star">★</button></h1>
       </div>
       <div class="qprice"><span class="px">${price!=null?num(price):'--'}</span>
-        <span class="chg ${up?'up':'down'}">${chg!=null?(up?'+':'')+num(chg)+' ('+(up?'+':'')+num(chgp)+'%)':''}</span></div>
+        <span class="chg ${up?'up':'down'}">${chg!=null?(up?'+':'')+num(chg)+' ('+(up?'+':'')+num(chgp)+'%)':''}</span>
+        ${q?.crosscheck?(q.crosscheck.disagree
+          ?`<span class="pill sell" title="Finnhub vs Twelve Data differ by ${q.crosscheck.gapPct}%">⚠ sources differ ${q.crosscheck.gapPct}%</span>`
+          :`<span class="pill buy" title="Twelve Data confirms within ${q.crosscheck.gapPct}%">✓ cross-checked</span>`):''}
+        ${q?._stale?`<span class="pill" style="color:var(--gold);border-color:var(--gold)">cached</span>`:''}
+      </div>
       <div class="qmeta">${prof?.ipo?'IPO '+prof.ipo:''} ${prof?.weburl?'· <a href="'+prof.weburl+'" target="_blank">website ↗</a>':''} ${cik?'· <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK='+(S.cur.cik)+'&type=&count=40" target="_blank">SEC ↗</a>':''}</div>
     </div>
     ${lo!=null&&hi!=null?`<div class="range52"><div class="lbl" style="left:0">${num(lo)}</div><div class="lbl" style="right:0">${num(hi)}</div><div class="track"></div>${pos!=null?`<div class="fillpos" style="left:${pos}%"></div>`:''}</div>`:''}
@@ -386,6 +397,13 @@ function renderQuote(tk,q,prof,m,sub){
       ${cell('10D Avg Vol',mt['10DayAverageTradingVolume']?big(mt['10DayAverageTradingVolume']*1e6):'--')}
       ${cell('3M Avg Vol',mt['3MonthAverageTradingVolume']?big(mt['3MonthAverageTradingVolume']*1e6):'--')}
     </div>
+    <div class="card">
+      <h3>Price Chart</h3>
+      <div class="rangebtns" id="rangeBtns">
+        ${['1M','3M','6M','1Y','5Y'].map(r=>`<button data-r="${r}" class="${r==='1Y'?'on':''}">${r}</button>`).join('')}
+      </div>
+      <div id="chartBox"><div class="empty"><span class="spinner"></span> loading chart…</div></div>
+    </div>
     <div class="cards">
       <div>
         <div class="card"><h3>Recent SEC Filings</h3><div class="scroll" style="max-height:340px"><table><thead><tr><th>Form</th><th>Filed</th><th>Period</th><th>Doc</th></tr></thead><tbody id="qFilings"><tr><td colspan="4" class="empty">${sub?'':'no SEC link'}</td></tr></tbody></table></div></div>
@@ -404,7 +422,42 @@ function renderQuote(tk,q,prof,m,sub){
     </div>`;
   $('#star').onclick=()=>toggleWL(tk,prof?.name||tk);
   if(sub)renderFilingsList(sub);
-  if(!S.fin)$('#quoteBody').insertAdjacentHTML('afterbegin','<div class="card" style="border-color:var(--gold)">Add a free Finnhub key (⚙ API Key) to load price & metric data. SEC filings below work without it.</div>');
+  $$('#rangeBtns button').forEach(b=>b.onclick=()=>{
+    $$('#rangeBtns button').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+    loadChart(tk,b.dataset.r);
+  });
+}
+async function loadChart(tk,range){
+  const box=$('#chartBox');if(!box)return;
+  box.innerHTML='<div class="empty"><span class="spinner"></span></div>';
+  try{
+    const d=await chartApi(tk,range);
+    if(d.error){box.innerHTML='<div class="empty">Charts need a Polygon key on the backend.</div>';return;}
+    const c=d.candles||[];
+    if(c.length<2){box.innerHTML='<div class="empty">No chart data for '+tk+'.</div>';return;}
+    drawLineChart(box,c);
+  }catch(e){box.innerHTML='<div class="empty">Chart error: '+e.message+'</div>';}
+}
+function drawLineChart(box,candles){
+  const W=Math.max(640,box.clientWidth||700),H=300,padL=52,padR=12,padT=14,padB=26;
+  const xs=candles.map(c=>c.t),ys=candles.map(c=>c.c);
+  const min=Math.min(...ys),max=Math.max(...ys),span=(max-min)||1;
+  const x0=xs[0],x1=xs[xs.length-1],xspan=(x1-x0)||1;
+  const X=t=>padL+((t-x0)/xspan)*(W-padL-padR);
+  const Y=v=>padT+(1-(v-min)/span)*(H-padT-padB);
+  const up=ys[ys.length-1]>=ys[0],col=up?'var(--green)':'var(--red)';
+  let path='';candles.forEach((c,i)=>{path+=(i?'L':'M')+X(c.t).toFixed(1)+' '+Y(c.c).toFixed(1)+' ';});
+  const area=path+`L${X(x1).toFixed(1)} ${H-padB} L${X(x0).toFixed(1)} ${H-padB} Z`;
+  let grid='';for(let i=0;i<=4;i++){const v=min+span*i/4,y=Y(v);
+    grid+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line)"/><text x="${padL-6}" y="${y+3}" text-anchor="end">${num(v)}</text>`;}
+  const fmtD=t=>{const d=new Date(t);return (d.getMonth()+1)+'/'+String(d.getFullYear()).slice(2);};
+  let xlab='';for(let i=0;i<=4;i++){const idx=Math.floor((candles.length-1)*i/4),c=candles[idx];
+    xlab+=`<text x="${X(c.t)}" y="${H-8}" text-anchor="middle">${fmtD(c.t)}</text>`;}
+  box.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block">
+    <defs><linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="${up?'#22c55e':'#ef4444'}" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="${up?'#22c55e':'#ef4444'}" stop-opacity="0"/></linearGradient></defs>
+    ${grid}<path d="${area}" fill="url(#ag)"/><path d="${path}" fill="none" stroke="${col}" stroke-width="1.8"/>${xlab}</svg>`;
 }
 function renderFilingsList(sub){
   const r=sub.filings.recent;let rows=[];
@@ -427,7 +480,7 @@ async function loadInsiders(tk){
         <td>${t.transactionPrice?'$'+num(t.transactionPrice):'--'}</td>
         <td>${t.transactionPrice&&t.change?'$'+big(Math.abs(t.change*t.transactionPrice)):'--'}</td></tr>`;
     }).join(''):'<tr><td colspan="6" class="empty">No insider data.</td></tr>';
-  }catch(e){$('#insBody').innerHTML='<tr><td colspan="6" class="empty">'+(S.fin?'Error: '+e.message:'Add a Finnhub key to load insider data.')+'</td></tr>';}
+  }catch(e){$('#insBody').innerHTML='<tr><td colspan="6" class="empty">'+'Error: '+e.message+'</td></tr>';}
 }
 function renderInsidersTab(){}
 
@@ -441,7 +494,7 @@ async function loadInst(tk){
       <td class="${o.change>=0?'up':'down'}">${o.change>=0?'+':''}${big(o.change)}</td>
       <td>$${big(o.value*1000)}</td><td class="muted">${d.data[0].reportDate||''}</td></tr>`).join('')
       :'<tr><td colspan="5" class="empty">No 13F data (often premium-only on free tier).</td></tr>';
-  }catch(e){$('#instBody').innerHTML='<tr><td colspan="5" class="empty">'+(S.fin?'13F data may require a premium Finnhub plan.':'Add a Finnhub key.')+'</td></tr>';}
+  }catch(e){$('#instBody').innerHTML='<tr><td colspan="5" class="empty">'+'13F data may require a premium Finnhub plan.'+'</td></tr>';}
 }
 
 /* ---------- NEWS ---------- */
@@ -452,12 +505,11 @@ async function loadNews(tk){
       ${a.image?`<img src="${a.image}" onerror="this.style.display='none'">`:''}
       <div><div class="h">${a.headline}</div><div class="s">${a.source} · ${new Date(a.datetime*1000).toLocaleDateString()}</div></div></a>`).join('')
       :'<div class="empty">No recent news.</div>';
-  }catch(e){$('#newsBody').innerHTML='<div class="empty">'+(S.fin?'News error.':'Add a Finnhub key for news.')+'</div>';}
+  }catch(e){$('#newsBody').innerHTML='<div class="empty">'+'News error: '+e.message+'</div>';}
 }
 
 /* ---------- EARNINGS ---------- */
 async function loadEarnings(){
-  if(!S.fin){$('#earnBody').innerHTML='<tr><td colspan="6" class="empty">Add a Finnhub key for the earnings calendar.</td></tr>';return;}
   try{const d=await fin('/calendar/earnings?from='+isoDaysAgo(0)+'&to='+isoDaysAgo(-14));
     const rows=(d.earningsCalendar||[]).slice(0,120);
     $('#earnBody').innerHTML=rows.length?rows.map(e=>`<tr><td>${e.date}</td><td class="ftype" style="cursor:pointer" onclick="openTicker('${e.symbol}',(S.byTk['${e.symbol}']||{}).c)">${e.symbol}</td>
@@ -476,7 +528,7 @@ function toggleWL(tk,name){
 async function renderWL(){
   if(!S.wl.length){$('#wlBody').innerHTML='<div class="empty">Star a stock from its quote page to add it here.</div>';return;}
   $('#wlBody').innerHTML='<div class="empty"><span class="spinner"></span></div>';
-  const quotes=await Promise.allSettled(S.wl.map(w=>fin('/quote?symbol='+w.tk)));
+  const quotes=await Promise.allSettled(S.wl.map(w=>quoteApi(w.tk)));
   $('#wlBody').innerHTML=S.wl.map((w,i)=>{
     const q=quotes[i].status==='fulfilled'?quotes[i].value:null;const up=(q?.d||0)>=0;
     return `<div class="wl-row" onclick="openTicker('${w.tk}',${w.cik||'null'})">
@@ -488,6 +540,7 @@ async function renderWL(){
   }).join('');
 }
 window.openTicker=openTicker;window.S=S;
+boot();
 </script>
 </body>
 </html>
