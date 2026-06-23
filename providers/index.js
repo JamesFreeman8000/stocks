@@ -59,22 +59,26 @@ export async function getQuote(symbol) {
     } catch (e) { /* fall through to Yahoo */ }
   }
   // Yahoo fallback
-  const q = await yf.quote(symbol);
-  if (!q || q.regularMarketPrice == null) throw new Error("not found");
-  return {
-    ticker: q.symbol, name: q.longName || q.shortName, exchange: q.fullExchangeName,
-    price: q.regularMarketPrice, change: q.regularMarketChange, changePct: q.regularMarketChangePercent,
-    afterHours: q.postMarketPrice ?? null, afterHoursChange: q.postMarketChange ?? null, afterHoursPct: q.postMarketChangePercent ?? null,
-    prevClose: q.regularMarketPreviousClose, open: q.regularMarketOpen,
-    dayLow: q.regularMarketDayLow, dayHigh: q.regularMarketDayHigh,
-    bid: q.bid != null ? `${q.bid} x ${q.bidSize ?? 0}` : "--",
-    ask: q.ask != null ? `${q.ask} x ${q.askSize ?? 0}` : "--",
-    wk52Low: q.fiftyTwoWeekLow, wk52High: q.fiftyTwoWeekHigh, marketCap: q.marketCap,
-    volume: q.regularMarketVolume, avgVolume: q.averageDailyVolume3Month,
-    peRatio: q.trailingPE ?? "--", eps: q.epsTrailingTwelveMonths ?? null, target: q.targetMeanPrice ?? null,
-    beta: q.beta ?? "--", earningsDate: q.earningsTimestamp ? new Date(q.earningsTimestamp).toDateString() : "--",
-    _source: "yahoo",
-  };
+  try {
+    const q = await yf.quote(symbol);
+    if (q && q.regularMarketPrice != null) {
+      return {
+        ticker: q.symbol, name: q.longName || q.shortName, exchange: q.fullExchangeName,
+        price: q.regularMarketPrice, change: q.regularMarketChange, changePct: q.regularMarketChangePercent,
+        afterHours: q.postMarketPrice ?? null, afterHoursChange: q.postMarketChange ?? null, afterHoursPct: q.postMarketChangePercent ?? null,
+        prevClose: q.regularMarketPreviousClose, open: q.regularMarketOpen,
+        dayLow: q.regularMarketDayLow, dayHigh: q.regularMarketDayHigh,
+        bid: q.bid != null ? `${q.bid} x ${q.bidSize ?? 0}` : "--",
+        ask: q.ask != null ? `${q.ask} x ${q.askSize ?? 0}` : "--",
+        wk52Low: q.fiftyTwoWeekLow, wk52High: q.fiftyTwoWeekHigh, marketCap: q.marketCap,
+        volume: q.regularMarketVolume, avgVolume: q.averageDailyVolume3Month,
+        peRatio: q.trailingPE ?? "--", eps: q.epsTrailingTwelveMonths ?? null, target: q.targetMeanPrice ?? null,
+        beta: q.beta ?? "--", earningsDate: q.earningsTimestamp ? new Date(q.earningsTimestamp).toDateString() : "--",
+        _source: "yahoo",
+      };
+    }
+  } catch (e) { /* fall through to error below */ }
+  throw new Error("not found");
 }
 
 /* ---------------- HISTORY (chart candles) ---------------- */
@@ -102,31 +106,46 @@ function startDate(days) {
 }
 
 export async function getHistory(symbol, range) {
+  // Try Alpaca first (200 req/min, clean bars). The free plan uses the IEX feed.
   if (ALPACA_KEY_ID && ALPACA_SECRET_KEY) {
+    const cfg = ALPACA_RANGE[range] || ALPACA_RANGE["1Y"];
+    const start = startDate(cfg.days).toISOString();
+    const headers = {
+      "APCA-API-KEY-ID": ALPACA_KEY_ID,
+      "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
+    };
+    // The free plan only allows the IEX feed; paginate in case of multiple pages.
     try {
-      const cfg = ALPACA_RANGE[range] || ALPACA_RANGE["1Y"];
-      const start = startDate(cfg.days).toISOString();
-      const url = `${ALPACA_DATA}/stocks/${symbol}/bars?timeframe=${cfg.timeframe}&start=${start}&limit=10000&adjustment=split&feed=iex`;
-      const data = await getJSON(url, {
-        "APCA-API-KEY-ID": ALPACA_KEY_ID,
-        "APCA-API-SECRET-KEY": ALPACA_SECRET_KEY,
-      });
-      const bars = data.bars || [];
+      let pageToken = null, bars = [], guard = 0;
+      do {
+        const u = `${ALPACA_DATA}/stocks/${symbol}/bars?timeframe=${cfg.timeframe}`
+          + `&start=${start}&limit=10000&adjustment=split&feed=iex`
+          + (pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : "");
+        const data = await getJSON(u, headers);
+        if (Array.isArray(data.bars)) bars = bars.concat(data.bars);
+        pageToken = data.next_page_token || null;
+      } while (pageToken && ++guard < 5);
       if (bars.length) {
         return bars.map((b) => ({
           ts: new Date(b.t).getTime(), price: +b.c.toFixed(2),
           open: b.o, high: b.h, low: b.l, close: b.c, volume: b.v,
         }));
       }
+      // empty -> fall through to Yahoo
     } catch (e) { /* fall through to Yahoo */ }
   }
-  // Yahoo fallback
-  const cfg = YF_RANGE[range] || YF_RANGE["1Y"];
-  const result = await yf.chart(symbol, { period1: startDate(cfg.days), interval: cfg.interval });
-  return (result?.quotes || []).filter((q) => q.close != null).map((q) => ({
-    ts: new Date(q.date).getTime(), price: +q.close.toFixed(2),
-    open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume,
-  }));
+  // Yahoo fallback (more complete coverage; good for charts when Alpaca is thin)
+  try {
+    const cfg = YF_RANGE[range] || YF_RANGE["1Y"];
+    const result = await yf.chart(symbol, { period1: startDate(cfg.days), interval: cfg.interval });
+    const out = (result?.quotes || []).filter((q) => q.close != null).map((q) => ({
+      ts: new Date(q.date).getTime(), price: +q.close.toFixed(2),
+      open: q.open, high: q.high, low: q.low, close: q.close, volume: q.volume,
+    }));
+    if (out.length) return out;
+  } catch (e) { /* fall through */ }
+  // Nothing worked: return empty so the frontend can show its own state.
+  return [];
 }
 
 /* ---------------- NEWS (per symbol) ---------------- */
@@ -194,6 +213,43 @@ export async function getFilings(symbol) {
     url: (f.exhibits && f.exhibits[0]?.url) || "https://www.sec.gov/cgi-bin/browse-edgar",
   }));
 }
+
+/* ---------------- ANALYST EVENTS (for chart dots) ---------------- */
+// Finnhub free tier gives recommendation trends + price target (aggregated,
+// not individual notes). We return dots the chart can plot, each with a
+// "source" link to a public ratings page so users can verify.
+export async function getAnalystEvents(symbol) {
+  const out = [];
+  if (FINNHUB_KEY) {
+    try {
+      const [recs, pt] = await Promise.all([
+        getJSON(`${FINNHUB}/stock/recommendation?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => []),
+        getJSON(`${FINNHUB}/stock/price-target?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => ({})),
+      ]);
+      // Most recent recommendation snapshot becomes an "analyst" dot.
+      if (Array.isArray(recs) && recs.length) {
+        const latest = recs[0]; // Finnhub returns newest first
+        const total = (latest.strongBuy || 0) + (latest.buy || 0) + (latest.hold || 0) + (latest.sell || 0) + (latest.strongSell || 0);
+        const bullish = (latest.strongBuy || 0) + (latest.buy || 0);
+        const consensus = bullish > total / 2 ? "Buy" : (latest.hold || 0) >= bullish ? "Hold" : "Sell";
+        out.push({
+          kind: "analyst",
+          ts: latest.period ? new Date(latest.period).getTime() : Date.now(),
+          firm: `${total} analysts`,
+          rating: consensus,
+          target: pt?.targetMean ?? null,
+          targetHigh: pt?.targetHigh ?? null,
+          targetLow: pt?.targetLow ?? null,
+          breakdown: { strongBuy: latest.strongBuy, buy: latest.buy, hold: latest.hold, sell: latest.sell, strongSell: latest.strongSell },
+          // public verification page (real source the user can open)
+          source: `https://www.marketbeat.com/stocks/NASDAQ/${symbol}/price-target/`,
+        });
+      }
+    } catch (e) { /* fall through to empty */ }
+  }
+  return out;
+}
+
 
 /* ---------------- SEARCH ---------------- */
 export async function search(q) {
