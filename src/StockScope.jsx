@@ -332,13 +332,17 @@ function ChartTooltip({ active, payload }) {
       <div style={{ color: "#94a3b8", fontSize: 11.5, marginTop: 1 }}>{p.full}</div>
       {ev && ev.kind === "earnings" && (
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #2b3340" }}>
-          <div style={{ color: "#fbbf24", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>📊 Earnings · {ev.quarter}</div>
+          <div style={{ color: "#fbbf24", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>📊 Earnings{ev.quarter ? ` · ${ev.quarter}` : ""}</div>
           <div style={{ color: "#cbd5e1", marginTop: 5, lineHeight: 1.55 }}>
-            <div>EPS: <b style={{ color: ev.epsAct >= ev.epsEst ? "#34d399" : "#f87171" }}>{ev.epsAct >= 0 ? "$" : "-$"}{Math.abs(ev.epsAct).toFixed(2)}</b> <span style={{ color: "#64748b" }}>est ${ev.epsEst.toFixed(2)}</span></div>
-            <div>Revenue: <b>{ev.revAct}</b> <span style={{ color: "#64748b" }}>est {ev.revEst}</span></div>
-            <div style={{ marginTop: 3, color: ev.epsAct >= ev.epsEst ? "#34d399" : "#f87171", fontWeight: 600 }}>
-              {ev.epsAct >= ev.epsEst ? "Beat" : "Miss"} · {ev.label}
-            </div>
+            {ev.epsAct != null && ev.epsEst != null && (
+              <div>EPS: <b style={{ color: ev.epsAct >= ev.epsEst ? "#34d399" : "#f87171" }}>{ev.epsAct >= 0 ? "$" : "-$"}{Math.abs(ev.epsAct).toFixed(2)}</b> <span style={{ color: "#64748b" }}>est ${ev.epsEst.toFixed(2)}</span></div>
+            )}
+            {ev.revAct && <div>Revenue: <b>{ev.revAct}</b> {ev.revEst ? <span style={{ color: "#64748b" }}>est {ev.revEst}</span> : null}</div>}
+            {ev.epsAct != null && ev.epsEst != null && (
+              <div style={{ marginTop: 3, color: ev.epsAct >= ev.epsEst ? "#34d399" : "#f87171", fontWeight: 600 }}>
+                {ev.epsAct >= ev.epsEst ? "Beat" : "Miss"}{ev.label ? ` · ${ev.label}` : ""}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -346,8 +350,14 @@ function ChartTooltip({ active, payload }) {
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #2b3340" }}>
           <div style={{ color: "#60a5fa", fontWeight: 700, display: "flex", alignItems: "center", gap: 5 }}>⭐ Analyst · {ev.firm}</div>
           <div style={{ color: "#cbd5e1", marginTop: 5, lineHeight: 1.55 }}>
-            <div>Rating: <b>{ev.rating}</b> {ev.prevRating !== ev.rating && <span style={{ color: "#64748b" }}>(was {ev.prevRating})</span>}</div>
-            <div>Target: <b style={{ color: "#34d399" }}>${ev.target.toFixed(2)}</b> {ev.prevTarget && <span style={{ color: "#64748b" }}>from ${ev.prevTarget.toFixed(2)}</span>}</div>
+            <div>Consensus: <b>{ev.rating}</b>{ev.prevRating && ev.prevRating !== ev.rating ? <span style={{ color: "#64748b" }}> (was {ev.prevRating})</span> : null}</div>
+            {ev.target != null && <div>Mean target: <b style={{ color: "#34d399" }}>${Number(ev.target).toFixed(2)}</b>{ev.targetLow != null && ev.targetHigh != null ? <span style={{ color: "#64748b" }}> (${Number(ev.targetLow).toFixed(0)}–${Number(ev.targetHigh).toFixed(0)})</span> : null}</div>}
+            {ev.breakdown && (
+              <div style={{ color: "#64748b", fontSize: 11, marginTop: 2 }}>
+                Buy {(ev.breakdown.strongBuy || 0) + (ev.breakdown.buy || 0)} · Hold {ev.breakdown.hold || 0} · Sell {(ev.breakdown.sell || 0) + (ev.breakdown.strongSell || 0)}
+              </div>
+            )}
+            {ev.source && <div style={{ marginTop: 5, color: "#60a5fa", fontSize: 11, fontWeight: 600 }}>Click dot to view source →</div>}
           </div>
         </div>
       )}
@@ -356,8 +366,17 @@ function ChartTooltip({ active, payload }) {
 }
 function EventDot({ cx, cy, payload }) {
   if (!payload.event) return null;
-  const c = payload.event.kind === "earnings" ? "#fbbf24" : "#60a5fa";
-  return (<g><circle cx={cx} cy={cy} r={10} fill={c} opacity={0.16} /><circle cx={cx} cy={cy} r={5} fill={c} stroke="#0b0e14" strokeWidth={1.6} /></g>);
+  const ev = payload.event;
+  const c = ev.kind === "earnings" ? "#fbbf24" : "#60a5fa";
+  const clickable = !!ev.source;
+  const handleClick = () => { if (ev.source) window.open(ev.source, "_blank", "noopener"); };
+  return (
+    <g style={{ cursor: clickable ? "pointer" : "default" }} onClick={handleClick}>
+      <circle cx={cx} cy={cy} r={10} fill={c} opacity={0.16} />
+      <circle cx={cx} cy={cy} r={5} fill={c} stroke="#0b0e14" strokeWidth={1.6} />
+      {clickable && <circle cx={cx} cy={cy} r={13} fill="transparent" />}
+    </g>
+  );
 }
 // TradingView-style crosshair: dashed vertical + horizontal lines through the hovered point,
 // with a price tag pinned to the right axis. Recharts passes points[] + plot width/height.
@@ -533,6 +552,7 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
   }, [liveQuote, bundled]);
 
   const liveCandles = useLiveHistory(active, range);
+  const liveEvents = useLive(`/api/events/${active}`, [active]);
   const series = useMemo(() => {
     // Real data path: map candles into chart points with axis ticks.
     if (Array.isArray(liveCandles) && liveCandles.length) {
@@ -541,8 +561,21 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
         const d = new Date(c.ts);
         return { i, price: c.price, ts: c.ts, label: axisLabel(d, range), full: fmtTime(d, !!m.intraday) };
       });
-      // attach earnings/analyst dots from bundled events onto nearest live point (1D only)
-      if (range === "1D" && stock?.events) stock.events.forEach((ev) => {
+      // Attach LIVE analyst events to the nearest candle by date (works on all ranges).
+      const evs = (liveEvents && Array.isArray(liveEvents.items)) ? liveEvents.items : [];
+      evs.forEach((ev) => {
+        if (!ev.ts) return;
+        // find closest point in time
+        let best = 0, bestDiff = Infinity;
+        for (let k = 0; k < pts.length; k++) {
+          const diff = Math.abs(pts[k].ts - ev.ts);
+          if (diff < bestDiff) { bestDiff = diff; best = k; }
+        }
+        // only show if the event falls within the visible window
+        if (bestDiff < (pts[pts.length - 1].ts - pts[0].ts)) pts[best] = { ...pts[best], event: ev };
+      });
+      // Fallback: bundled demo events on 1D if no live events
+      if (!evs.length && range === "1D" && stock?.events) stock.events.forEach((ev) => {
         const idx = Math.round((ev.posPct ?? 0.5) * (pts.length - 1));
         if (pts[idx]) pts[idx] = { ...pts[idx], event: ev };
       });
@@ -551,7 +584,7 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
     }
     // Demo path: synthetic spiky series.
     return stock ? buildSeries(stock, range) : [];
-  }, [active, range, stock, liveCandles]);
+  }, [active, range, stock, liveCandles, liveEvents]);
   const chartLoading = liveCandles === undefined;
   const changePct = stock ? (stock.change / stock.prevClose) * 100 : 0;
   const up = stock && stock.change >= 0;
