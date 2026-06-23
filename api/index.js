@@ -5,7 +5,7 @@
 
 import {
   getQuote, getHistory, getNews, getMarketNews, getFilings,
-  search, getScreener, providerStatus,
+  search, getScreener, getAnalystEvents, providerStatus,
 } from "../providers/index.js";
 
 const cache = new Map();
@@ -69,6 +69,10 @@ export default async function handler(req, res) {
     if (route === "sec") {
       const s = arg.toUpperCase();
       return res.status(200).json({ symbol: s, items: await cached(`sec:${s}`, TTL.sec, () => getFilings(s)) });
+    }
+    if (route === "events") {
+      const s = arg.toUpperCase();
+      return res.status(200).json({ symbol: s, items: await cached(`events:${s}`, TTL.daily, () => getAnalystEvents(s)) });
     }
     if (route === "search") {
       const q = (searchParams.get("q")||"").trim();
