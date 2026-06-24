@@ -4,7 +4,7 @@
 
 import React, { useState } from "react";
 import { useAuth } from "./AuthContext.jsx";
-import { X, Copy, Check, ShieldCheck, AlertCircle } from "lucide-react";
+import { X, Copy, Check, ShieldCheck, AlertCircle, Download } from "lucide-react";
 
 export default function AuthModal({ open, onClose }) {
   const { signUp, signIn, recoverWithCode } = useAuth();
@@ -72,6 +72,12 @@ export default function AuthModal({ open, onClose }) {
             </button>
           </div>
 
+          {/* download as a clearly-named file */}
+          <button onClick={() => downloadRecoveryCode(recoveryCode)}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#11151d", border: "1px solid #232b38", borderRadius: 9, padding: "11px", color: "#cbd5e1", fontSize: 13.5, fontWeight: 600, cursor: "pointer", marginBottom: 14 }}>
+            <Download size={16} /> Download recovery code
+          </button>
+
           {/* slide-to-confirm */}
           <SaveSlider confirmed={savedConfirmed} onConfirm={() => setSavedConfirmed(true)} />
 
@@ -130,6 +136,37 @@ export default function AuthModal({ open, onClose }) {
 
 function A({ children, onClick }) {
   return <span onClick={onClick} style={{ color: "#10b981", fontWeight: 600, cursor: "pointer" }}>{children}</span>;
+}
+
+// Save the recovery code as a clearly-named .txt file so users know what it is.
+function downloadRecoveryCode(code) {
+  const now = new Date().toLocaleString();
+  const contents =
+`StockScope — Account Recovery Code
+====================================
+
+KEEP THIS FILE SAFE AND PRIVATE.
+
+This code is the ONLY way to recover your StockScope account
+if you forget your password. Anyone with this code may be able
+to reset your account, so do not share it.
+
+Your recovery code:
+
+    ${code}
+
+Generated: ${now}
+Website: StockScope
+`;
+  const blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "StockScope-Recovery-Code.txt";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // Slide-to-confirm control: user drags the knob to the right to confirm.
