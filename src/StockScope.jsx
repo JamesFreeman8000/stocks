@@ -10,6 +10,7 @@ import {
 import { useAuth } from "./auth/AuthContext.jsx";
 import AuthModal from "./auth/AuthModal.jsx";
 import SettingsModal from "./auth/SettingsModal.jsx";
+import { useWatchlist } from "./auth/useWatchlist.js";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -414,7 +415,7 @@ const sentColor = (s) => s === "positive" ? "#10b981" : s === "negative" ? "#f87
 export default function StockScope() {
   const [page, setPage] = useState("markets");
   const [active, setActive] = useState("ARTV");
-  const [watchlist, setWatchlist] = useState(["AAPL", "NVDA", "TSLA", "ARTV"]);
+  const { tickers: watchlist, addTicker, removeTicker, toggleTicker } = useWatchlist();
   const [notFound, setNotFound] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -486,7 +487,7 @@ export default function StockScope() {
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} setWatchlist={setWatchlist} />}
+      {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} />}
       {page === "news" && <NewsPage open={open} />}
       {page === "screener" && <ScreenerPage open={open} />}
 
@@ -543,7 +544,8 @@ function GlobalSearch({ onPick }) {
 }
 
 /* ============================ MARKETS ============================ */
-function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
+function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicker, toggleTicker }) {
+  const { user } = useAuth();
   const [range, setRange] = useState("1D");
   const [tab, setTab] = useState("news");
   const bundled = STOCKS[active];
@@ -616,7 +618,7 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
   const changePct = stock ? (stock.change / stock.prevClose) * 100 : 0;
   const up = stock && stock.change >= 0;
   const inWatch = watchlist.includes(active);
-  const toggleWatch = () => setWatchlist((w) => w.includes(active) ? w.filter((x) => x !== active) : [...w, active]);
+  const toggleWatch = () => toggleTicker(active);
 
   // Per-stock news (live or bundled-filtered).
   const liveNews = useLive(`/api/news/${active}`, [active]);
@@ -644,9 +646,14 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
         <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: ".08em", color: "#64748b", fontWeight: 700, marginBottom: 12, paddingLeft: 6, display: "flex", justifyContent: "space-between" }}>
           <span>Watchlist</span><span style={{ color: "#334155" }}>{watchlist.length}</span>
         </div>
+        {!user && (
+          <div style={{ padding: "8px 10px", margin: "0 0 8px", fontSize: 11, color: "#64748b", background: "#0f141c", border: "1px solid #1a2230", borderRadius: 8, lineHeight: 1.5 }}>
+            Log in to save your watchlist across devices.
+          </div>
+        )}
         {watchlist.length === 0 && <div style={{ padding: "10px 8px", fontSize: 12, color: "#475569" }}>Empty — open a stock and tap ★ to add.</div>}
         {watchlist.map((w) => (
-          <WatchRow key={w} w={w} active={active} open={open} remove={() => setWatchlist((l) => l.filter((x) => x !== w))} />
+          <WatchRow key={w} w={w} active={active} open={open} remove={() => removeTicker(w)} />
         ))}
         <div style={{ marginTop: 22, padding: "14px 12px", background: "#0f141c", borderRadius: 11, border: "1px solid #1a2230" }}>
           <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}><Circle size={8} fill="#fbbf24" color="#fbbf24" /> Earnings</div>
