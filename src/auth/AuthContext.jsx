@@ -105,27 +105,6 @@ export function AuthProvider({ children }) {
     if (error) throw error;
   }
 
-  // ---- EMAIL VERIFICATION (code-based, controlled by our own flag) ----
-  // Send a 6-digit code to the user's email. Uses Supabase's signup-OTP resend.
-  async function sendVerificationCode() {
-    if (!supabase || !user) throw new Error("Not signed in.");
-    const { error } = await supabase.auth.resend({ type: "signup", email: user.email });
-    if (error) throw error;
-    return true;
-  }
-
-  // User enters the code from their email. If it checks out, flip OUR flag.
-  async function confirmVerificationCode(code) {
-    if (!supabase || !user) throw new Error("Not signed in.");
-    const { error } = await supabase.auth.verifyOtp({ email: user.email, token: code.trim(), type: "signup" });
-    if (error) throw new Error("That code is invalid or expired. Try resending.");
-    // mark verified in our own controlled column
-    const { error: upErr } = await supabase.from("profiles").update({ email_verified: true }).eq("id", user.id);
-    if (upErr) throw upErr;
-    await loadProfile(user.id);
-    return true;
-  }
-
   async function signOut() {
     if (supabase) await supabase.auth.signOut();
     setProfile(null);
@@ -149,14 +128,18 @@ export function AuthProvider({ children }) {
     return out;
   }
 
+  // Account age in minutes — used to gate posting against instant-signup spam bots.
+  const accountAgeMinutes = profile?.created_at
+    ? Math.floor((Date.now() - new Date(profile.created_at).getTime()) / 60000)
+    : 0;
+
   const value = {
     user, profile, loading,
     isAdmin: !!profile?.is_admin,
     isPremium: profile?.tier === "premium",
-    emailVerified: !!profile?.email_verified,  // OUR controlled flag, gates posting
+    accountAgeMinutes,
     supabaseEnabled,
     signUp: completeSignup, prepareSignup, completeSignup, signIn, signOut, recoverWithCode,
-    sendVerificationCode, confirmVerificationCode,
     reloadProfile: () => user && loadProfile(user.id),
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
