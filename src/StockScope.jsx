@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import AuthModal from "./auth/AuthModal.jsx";
+import SettingsModal from "./auth/SettingsModal.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -416,6 +417,7 @@ export default function StockScope() {
   const [watchlist, setWatchlist] = useState(["AAPL", "NVDA", "TSLA", "ARTV"]);
   const [notFound, setNotFound] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { user, profile, signOut, supabaseEnabled } = useAuth();
 
   const open = (t) => {
@@ -466,12 +468,12 @@ export default function StockScope() {
         {supabaseEnabled && (
           user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 14 }}>
-              <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff" }}>
+              <div onClick={() => setSettingsOpen(true)} style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
                 {profile?.avatar_url && profile?.avatar_status === "approved"
                   ? <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : (profile?.username?.[0]?.toUpperCase() || <User size={16} />)}
               </div>
-              <span style={{ fontSize: 13.5, fontWeight: 600, color: "#cbd5e1" }}>{profile?.username || "Account"}</span>
+              <span onClick={() => setSettingsOpen(true)} style={{ fontSize: 13.5, fontWeight: 600, color: "#cbd5e1", cursor: "pointer" }}>{profile?.username || "Account"}</span>
               <LogOut size={16} color="#64748b" onClick={signOut} style={{ cursor: "pointer" }} title="Log out" />
             </div>
           ) : (
@@ -482,6 +484,7 @@ export default function StockScope() {
         )}
       </div>
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} setWatchlist={setWatchlist} />}
       {page === "news" && <NewsPage open={open} />}
