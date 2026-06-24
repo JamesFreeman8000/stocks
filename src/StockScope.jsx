@@ -5,8 +5,10 @@ import {
 import {
   Search, Newspaper, FileText, Landmark, Star, Circle, BarChart3,
   Sparkles, Calendar, AlertCircle, LayoutGrid, ExternalLink, X, Globe,
-  ArrowUpRight, Filter, RefreshCw, Info,
+  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut,
 } from "lucide-react";
+import { useAuth } from "./auth/AuthContext.jsx";
+import AuthModal from "./auth/AuthModal.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -413,6 +415,8 @@ export default function StockScope() {
   const [active, setActive] = useState("ARTV");
   const [watchlist, setWatchlist] = useState(["AAPL", "NVDA", "TSLA", "ARTV"]);
   const [notFound, setNotFound] = useState("");
+  const [authOpen, setAuthOpen] = useState(false);
+  const { user, profile, signOut, supabaseEnabled } = useAuth();
 
   const open = (t) => {
     const T = String(t || "").trim().toUpperCase();
@@ -459,7 +463,25 @@ export default function StockScope() {
         </div>
         <div style={{ flex: 1 }} />
         <GlobalSearch onPick={open} />
+        {supabaseEnabled && (
+          user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 14 }}>
+              <div style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff" }}>
+                {profile?.avatar_url && profile?.avatar_status === "approved"
+                  ? <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  : (profile?.username?.[0]?.toUpperCase() || <User size={16} />)}
+              </div>
+              <span style={{ fontSize: 13.5, fontWeight: 600, color: "#cbd5e1" }}>{profile?.username || "Account"}</span>
+              <LogOut size={16} color="#64748b" onClick={signOut} style={{ cursor: "pointer" }} title="Log out" />
+            </div>
+          ) : (
+            <button onClick={() => setAuthOpen(true)} style={{ marginLeft: 14, background: "#10b981", color: "#04130c", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 13.5, cursor: "pointer" }}>
+              Log in
+            </button>
+          )
+        )}
       </div>
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
 
       {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} setWatchlist={setWatchlist} />}
       {page === "news" && <NewsPage open={open} />}
@@ -561,18 +583,20 @@ function MarketsPage({ active, notFound, open, watchlist, setWatchlist }) {
         const d = new Date(c.ts);
         return { i, price: c.price, ts: c.ts, label: axisLabel(d, range), full: fmtTime(d, !!m.intraday) };
       });
-      // Attach LIVE analyst events to the nearest candle by date (works on all ranges).
+      // Attach LIVE events to the nearest candle, but ONLY if the event's date
+      // actually falls within this chart's visible time window.
       const evs = (liveEvents && Array.isArray(liveEvents.items)) ? liveEvents.items : [];
+      const firstTs = pts[0].ts, lastTs = pts[pts.length - 1].ts;
+      const tol = (lastTs - firstTs) * 0.02; // small edge tolerance
       evs.forEach((ev) => {
         if (!ev.ts) return;
-        // find closest point in time
+        if (ev.ts < firstTs - tol || ev.ts > lastTs + tol) return; // outside window
         let best = 0, bestDiff = Infinity;
         for (let k = 0; k < pts.length; k++) {
           const diff = Math.abs(pts[k].ts - ev.ts);
           if (diff < bestDiff) { bestDiff = diff; best = k; }
         }
-        // only show if the event falls within the visible window
-        if (bestDiff < (pts[pts.length - 1].ts - pts[0].ts)) pts[best] = { ...pts[best], event: ev };
+        pts[best] = { ...pts[best], event: ev };
       });
       // Fallback: bundled demo events on 1D if no live events
       if (!evs.length && range === "1D" && stock?.events) stock.events.forEach((ev) => {
