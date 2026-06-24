@@ -55,26 +55,26 @@ export function AuthProvider({ children }) {
   // Returns { recoveryCode } so the UI can show it once for the user to save.
   async function signUp({ username, email, password }) {
     if (!supabase) throw new Error("Auth is not configured yet.");
-    // 1) create the auth user (Supabase hashes the password)
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) throw error;
-    const uid = data.user?.id;
-    if (!uid) throw new Error("Signup failed. Try again.");
 
-    // 2) recovery code (shown once, stored only as a hash)
+    // recovery code (shown once, stored only as a hash)
     const recoveryCode = makeRecoveryCode();
     const recovery_code_hash = await sha256(recoveryCode);
 
-    // 3) create the profile row
-    const { error: pErr } = await supabase.from("profiles").insert({
-      id: uid, username, recovery_code_hash,
+    // Create the auth user. We pass username + recovery hash as metadata so a
+    // database trigger can create the matching profile row with the right
+    // permissions (this avoids the RLS timing error on direct inserts).
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: { data: { username, recovery_code_hash } },
     });
-    if (pErr) {
-      // most common: duplicate username
-      throw new Error(pErr.message.includes("duplicate") ? "That username is taken." : pErr.message);
+    if (error) {
+      if (error.message?.toLowerCase().includes("already")) throw new Error("That email is already registered.");
+      throw error;
     }
+    const uid = data.user?.id;
+    if (!uid) throw new Error("Signup failed. Try again.");
 
-    // 4) best-effort: log non-password info to your Google Sheet (server-side)
+    // best-effort: log non-password info to your Google Sheet (server-side)
     try {
       await fetch("/api/sheet-log", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -82,6 +82,8 @@ export function AuthProvider({ children }) {
       });
     } catch { /* non-fatal: the sheet is just a convenience mirror */ }
 
+    // The trigger creates the profile; give it a moment, then load it.
+    await new Promise((r) => setTimeout(r, 600));
     await loadProfile(uid);
     return { recoveryCode };
   }
@@ -119,6 +121,7 @@ export function AuthProvider({ children }) {
     user, profile, loading,
     isAdmin: !!profile?.is_admin,
     isPremium: profile?.tier === "premium",
+    emailVerified: !!user?.email_confirmed_at,  // used later to gate posting
     supabaseEnabled,
     signUp, signIn, signOut, recoverWithCode, reloadProfile: () => user && loadProfile(user.id),
   };
