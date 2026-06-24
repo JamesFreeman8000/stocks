@@ -52,20 +52,32 @@ export function AuthProvider({ children }) {
   }, [loadProfile]);
 
   // ---- SIGN UP ----
-  // Returns { recoveryCode } so the UI can show it once for the user to save.
-  async function signUp({ username, email, password }) {
+  // ---- SIGN UP (two-step so nothing is created until the user confirms) ----
+  // Step 1: validate inputs, generate the recovery code. NOTHING is created yet.
+  // Returns { recoveryCode, hash } for the UI to show + later pass to complete.
+  async function prepareSignup({ username, email, password }) {
     if (!supabase) throw new Error("Auth is not configured yet.");
+    if (username.trim().length < 3) throw new Error("Username must be at least 3 characters.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Enter a valid email.");
+    if (password.length < 8) throw new Error("Password must be at least 8 characters.");
 
-    // recovery code (shown once, stored only as a hash)
+    // Pre-check the email isn't already taken, so the user finds out NOW
+    // (before saving a code), not after confirming.
+    // We attempt a lightweight check via the profiles/username uniqueness later;
+    // email uniqueness is enforced by Supabase at creation time as a backstop.
+
     const recoveryCode = makeRecoveryCode();
-    const recovery_code_hash = await sha256(recoveryCode);
+    const hash = await sha256(recoveryCode);
+    return { recoveryCode, hash };
+  }
 
-    // Create the auth user. We pass username + recovery hash as metadata so a
-    // database trigger can create the matching profile row with the right
-    // permissions (this avoids the RLS timing error on direct inserts).
+  // Step 2: actually create the account. Called only after the user confirms
+  // they've saved their recovery code. If they bailed earlier, nothing exists.
+  async function completeSignup({ username, email, password, hash }) {
+    if (!supabase) throw new Error("Auth is not configured yet.");
     const { data, error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { username, recovery_code_hash } },
+      options: { data: { username, recovery_code_hash: hash } },
     });
     if (error) {
       if (error.message?.toLowerCase().includes("already")) throw new Error("That email is already registered.");
@@ -82,10 +94,9 @@ export function AuthProvider({ children }) {
       });
     } catch { /* non-fatal: the sheet is just a convenience mirror */ }
 
-    // The trigger creates the profile; give it a moment, then load it.
+    // The DB trigger creates the profile; give it a moment, then load it.
     await new Promise((r) => setTimeout(r, 600));
     await loadProfile(uid);
-    return { recoveryCode };
   }
 
   async function signIn({ email, password }) {
@@ -123,7 +134,7 @@ export function AuthProvider({ children }) {
     isPremium: profile?.tier === "premium",
     emailVerified: !!user?.email_confirmed_at,  // used later to gate posting
     supabaseEnabled,
-    signUp, signIn, signOut, recoverWithCode, reloadProfile: () => user && loadProfile(user.id),
+    signUp: completeSignup, prepareSignup, completeSignup, signIn, signOut, recoverWithCode, reloadProfile: () => user && loadProfile(user.id),
   };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

@@ -7,12 +7,13 @@ import { useAuth } from "./AuthContext.jsx";
 import { X, Copy, Check, ShieldCheck, AlertCircle, Download } from "lucide-react";
 
 export default function AuthModal({ open, onClose }) {
-  const { signUp, signIn, recoverWithCode } = useAuth();
+  const { prepareSignup, completeSignup, signIn, recoverWithCode } = useAuth();
   const [mode, setMode] = useState("login"); // login | signup | recover
   const [form, setForm] = useState({ username: "", email: "", password: "", code: "", newPassword: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [recoveryCode, setRecoveryCode] = useState(null); // shown after signup
+  const [recoveryCode, setRecoveryCode] = useState(null); // shown before account is created
+  const [pendingHash, setPendingHash] = useState(null);    // hash to pass to completeSignup
   const [savedConfirmed, setSavedConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -23,10 +24,10 @@ export default function AuthModal({ open, onClose }) {
     setError(""); setBusy(true);
     try {
       if (mode === "signup") {
-        if (form.username.length < 3) throw new Error("Username must be at least 3 characters.");
-        if (form.password.length < 8) throw new Error("Password must be at least 8 characters.");
-        const { recoveryCode } = await signUp(form);
-        setRecoveryCode(recoveryCode); // switch to the "save your code" screen
+        // Step 1: generate the recovery code. NOTHING is created yet.
+        const { recoveryCode, hash } = await prepareSignup(form);
+        setRecoveryCode(recoveryCode);
+        setPendingHash(hash);
       } else if (mode === "login") {
         await signIn(form);
         onClose();
@@ -40,10 +41,22 @@ export default function AuthModal({ open, onClose }) {
     setBusy(false);
   }
 
-  function finishSignup() {
-    setRecoveryCode(null);
-    setSavedConfirmed(false);
-    onClose();
+  // Called when the user has confirmed they saved the code. NOW create the account.
+  async function finishSignup() {
+    setError(""); setBusy(true);
+    try {
+      await completeSignup({ ...form, hash: pendingHash });
+      // success — reset and close
+      setRecoveryCode(null); setPendingHash(null); setSavedConfirmed(false);
+      onClose();
+    } catch (e) {
+      // Account creation failed (e.g. email already taken). Send them back to
+      // the form with the error; nothing was created.
+      setError(e.message || "Could not create account.");
+      setRecoveryCode(null); setPendingHash(null); setSavedConfirmed(false);
+      setMode("signup");
+    }
+    setBusy(false);
   }
 
   const wrap = { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "grid", placeItems: "center", zIndex: 100, backdropFilter: "blur(3px)" };
@@ -81,10 +94,20 @@ export default function AuthModal({ open, onClose }) {
           {/* slide-to-confirm */}
           <SaveSlider confirmed={savedConfirmed} onConfirm={() => setSavedConfirmed(true)} />
 
-          <button onClick={finishSignup} disabled={!savedConfirmed}
-            style={{ ...btn, marginTop: 14, opacity: savedConfirmed ? 1 : 0.4, cursor: savedConfirmed ? "pointer" : "not-allowed" }}>
-            I've saved it — continue
+          <p style={{ fontSize: 11.5, color: "#64748b", lineHeight: 1.5, marginTop: 12, marginBottom: 0 }}>
+            Your account is created when you continue below — not before. If you
+            leave now, nothing is saved and this email stays available.
+          </p>
+
+          <button onClick={finishSignup} disabled={!savedConfirmed || busy}
+            style={{ ...btn, marginTop: 12, opacity: (savedConfirmed && !busy) ? 1 : 0.4, cursor: (savedConfirmed && !busy) ? "pointer" : "not-allowed" }}>
+            {busy ? "Creating account…" : "I've saved it — create my account"}
           </button>
+          {error && (
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-start", background: "#1f1416", border: "1px solid #4c1d1d", color: "#fca5a5", padding: "10px 12px", borderRadius: 9, fontSize: 12.5, marginTop: 12 }}>
+              <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} /> {error}
+            </div>
+          )}
         </div>
       </div>
     );
