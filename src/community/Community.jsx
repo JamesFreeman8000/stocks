@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { usePosts } from "./usePosts.js";
 import { tokenizePost } from "./postUtils.js";
-import { MessageSquare, Send, AlertCircle, Loader2, BadgeCheck, Image as ImageIcon } from "lucide-react";
+import { MessageSquare, Send, AlertCircle, Loader2, BadgeCheck, Image as ImageIcon, Trash2, ArrowLeft } from "lucide-react";
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
@@ -35,22 +35,46 @@ function PostBody({ text, onOpenTicker }) {
   );
 }
 
-export function PostCard({ post, onOpenTicker }) {
+export function PostCard({ post, onOpenTicker, onOpenProfile, onDeleted }) {
+  const { user, isAdmin } = useAuth();
+  const { deletePost } = usePosts();
+  const [deleting, setDeleting] = useState(false);
+  const [confirm, setConfirm] = useState(false);
   const prof = post.profiles || {};
   const isPremium = prof.tier === "premium";
+  const canDelete = user && (user.id === post.user_id || isAdmin);
+
+  async function handleDelete() {
+    setDeleting(true);
+    const res = await deletePost(post.id);
+    setDeleting(false);
+    if (res.ok && onDeleted) onDeleted(post.id);
+  }
+
   return (
     <div style={{ background: "#0f141c", border: "1px solid #1a2230", borderRadius: 13, padding: 16, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+        <div onClick={() => onOpenProfile && onOpenProfile(post.user_id)}
+          style={{ width: 34, height: 34, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 14, fontWeight: 700, color: "#fff", flexShrink: 0, cursor: onOpenProfile ? "pointer" : "default" }}>
           {prof.avatar_url && prof.avatar_status === "approved"
             ? <img src={prof.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
             : (prof.username?.[0]?.toUpperCase() || "?")}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div onClick={() => onOpenProfile && onOpenProfile(post.user_id)} style={{ display: "flex", alignItems: "center", gap: 6, cursor: onOpenProfile ? "pointer" : "default" }}>
           <span style={{ fontSize: 13.5, fontWeight: 700 }}>{prof.username || "user"}</span>
           {isPremium && <BadgeCheck size={14} color="#fbbf24" />}
         </div>
         <span style={{ fontSize: 12, color: "#64748b", marginLeft: "auto" }}>{timeAgo(post.created_at)}</span>
+        {canDelete && (
+          confirm ? (
+            <span style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+              <button onClick={handleDelete} disabled={deleting} style={{ background: "#4c1d1d", color: "#fca5a5", border: "none", borderRadius: 6, padding: "3px 9px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>{deleting ? "…" : "Delete"}</button>
+              <button onClick={() => setConfirm(false)} style={{ background: "none", border: "none", color: "#64748b", fontSize: 11.5, cursor: "pointer" }}>Cancel</button>
+            </span>
+          ) : (
+            <Trash2 size={15} color="#475569" onClick={() => setConfirm(true)} style={{ cursor: "pointer", marginLeft: 8 }} />
+          )
+        )}
       </div>
       <PostBody text={post.body} onOpenTicker={onOpenTicker} />
       {post.image_url && post.image_status === "approved" && (
@@ -118,12 +142,14 @@ function Composer({ onPosted, onOpenAuth }) {
 }
 
 // Full Community page (the top-nav tab).
-export function CommunityPage({ onOpenTicker, onOpenAuth }) {
+export function CommunityPage({ onOpenTicker, onOpenAuth, onOpenProfile }) {
   const { fetchFeed } = usePosts();
   const [posts, setPosts] = useState(null);
 
   const load = useCallback(async () => { setPosts(await fetchFeed()); }, [fetchFeed]);
   useEffect(() => { load(); }, [load]);
+
+  const removeFromList = (id) => setPosts((cur) => (cur || []).filter((p) => p.id !== id));
 
   return (
     <div style={{ maxWidth: 720, margin: "0 auto", padding: "26px 28px" }}>
@@ -133,19 +159,72 @@ export function CommunityPage({ onOpenTicker, onOpenAuth }) {
       <Composer onPosted={(p) => setPosts((cur) => [p, ...(cur || [])])} onOpenAuth={onOpenAuth} />
       {posts === null && <div style={{ padding: 30, textAlign: "center", color: "#64748b" }}><Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} /></div>}
       {posts && posts.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 13.5 }}>No posts yet. Be the first.</div>}
-      {posts && posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} />)}
+      {posts && posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} onOpenProfile={onOpenProfile} onDeleted={removeFromList} />)}
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+    </div>
+  );
+}
+
+// A user's profile page: header + all their posts.
+export function ProfilePage({ userId, onOpenTicker, onOpenProfile, onBack }) {
+  const { fetchUserPosts, fetchProfile } = usePosts();
+  const { user } = useAuth();
+  const [prof, setProf] = useState(null);
+  const [posts, setPosts] = useState(null);
+
+  useEffect(() => {
+    let on = true;
+    fetchProfile(userId).then((p) => on && setProf(p));
+    fetchUserPosts(userId).then((p) => on && setPosts(p));
+    return () => { on = false; };
+  }, [userId, fetchProfile, fetchUserPosts]);
+
+  const removeFromList = (id) => setPosts((cur) => (cur || []).filter((p) => p.id !== id));
+  const isMe = user?.id === userId;
+  const isPremium = prof?.tier === "premium";
+
+  return (
+    <div style={{ maxWidth: 720, margin: "0 auto", padding: "26px 28px" }}>
+      <button onClick={onBack} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "#64748b", fontSize: 13.5, fontWeight: 600, cursor: "pointer", marginBottom: 18, padding: 0 }}>
+        <ArrowLeft size={16} /> Back to Community
+      </button>
+
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 24 }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 26, fontWeight: 700, color: "#fff", flexShrink: 0 }}>
+          {prof?.avatar_url && prof?.avatar_status === "approved"
+            ? <img src={prof.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            : (prof?.username?.[0]?.toUpperCase() || "?")}
+        </div>
+        <div>
+          <div style={{ fontSize: 22, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
+            {prof?.username || "…"}
+            {isPremium && <span style={{ fontSize: 10, fontWeight: 700, color: "#fbbf24", background: "#2a210a", padding: "2px 7px", borderRadius: 5, display: "inline-flex", alignItems: "center", gap: 3 }}><BadgeCheck size={11} /> PREMIUM</span>}
+            {isMe && <span style={{ fontSize: 11, color: "#64748b", fontWeight: 600 }}>(you)</span>}
+          </div>
+          <div style={{ fontSize: 13, color: "#64748b", marginTop: 3 }}>
+            {posts === null ? "…" : `${posts.length} post${posts.length === 1 ? "" : "s"}`}
+            {prof?.created_at && ` · joined ${new Date(prof.created_at).toLocaleDateString()}`}
+          </div>
+        </div>
+      </div>
+
+      {posts === null && <div style={{ padding: 30, textAlign: "center", color: "#64748b" }}><Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} /></div>}
+      {posts && posts.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 13.5 }}>No posts yet.</div>}
+      {posts && posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} onOpenProfile={onOpenProfile} onDeleted={removeFromList} />)}
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
 
 // Compact list for a stock page's "Community" tab — only posts mentioning `ticker`.
-export function TickerPosts({ ticker, onOpenTicker }) {
+export function TickerPosts({ ticker, onOpenTicker, onOpenProfile }) {
   const { fetchByTicker } = usePosts();
   const [posts, setPosts] = useState(null);
   useEffect(() => { let on = true; fetchByTicker(ticker).then((p) => on && setPosts(p)); return () => { on = false; }; }, [ticker, fetchByTicker]);
 
+  const removeFromList = (id) => setPosts((cur) => (cur || []).filter((p) => p.id !== id));
+
   if (posts === null) return <div style={{ padding: 24, textAlign: "center", color: "#64748b" }}><Loader2 size={20} style={{ animation: "spin 1s linear infinite" }} /></div>;
   if (!posts.length) return <div style={{ padding: 24, textAlign: "center", color: "#64748b", fontSize: 13 }}>No community posts mention ${ticker} yet.</div>;
-  return <div>{posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} />)}</div>;
+  return <div>{posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} onOpenProfile={onOpenProfile} onDeleted={removeFromList} />)}</div>;
 }

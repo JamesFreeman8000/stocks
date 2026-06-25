@@ -98,5 +98,38 @@ export function usePosts() {
     return data || [];
   }, []);
 
-  return { createPost, fetchFeed, fetchByTicker, posting };
+  // Fetch all visible posts by a specific user (their profile page).
+  const fetchUserPosts = useCallback(async (userId, limit = 50) => {
+    if (!supabase) return [];
+    const { data, error } = await supabase
+      .from("posts")
+      .select("id, body, image_url, image_status, created_at, user_id, profiles!posts_user_id_profiles_fkey(username, avatar_url, avatar_status, tier)")
+      .eq("user_id", userId)
+      .eq("status", "visible")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+    if (error) { console.error("fetchUserPosts", error); return []; }
+    return data || [];
+  }, []);
+
+  // Fetch a single profile by id (for the profile page header + post counts).
+  const fetchProfile = useCallback(async (userId) => {
+    if (!supabase) return null;
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, username, avatar_url, avatar_status, tier, created_at")
+      .eq("id", userId)
+      .single();
+    return data || null;
+  }, []);
+
+  // Delete a post. RLS already ensures only the author (or an admin) can.
+  const deletePost = useCallback(async (postId) => {
+    if (!supabase) return { ok: false };
+    const { error } = await supabase.from("posts").delete().eq("id", postId);
+    if (error) { console.error("deletePost", error); return { ok: false, error: error.message }; }
+    return { ok: true };
+  }, []);
+
+  return { createPost, fetchFeed, fetchByTicker, fetchUserPosts, fetchProfile, deletePost, posting };
 }
