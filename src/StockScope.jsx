@@ -5,12 +5,13 @@ import {
 import {
   Search, Newspaper, FileText, Landmark, Star, Circle, BarChart3,
   Sparkles, Calendar, AlertCircle, LayoutGrid, ExternalLink, X, Globe,
-  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut,
+  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut, MessageSquare,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import AuthModal from "./auth/AuthModal.jsx";
 import SettingsModal from "./auth/SettingsModal.jsx";
 import { useWatchlist } from "./auth/useWatchlist.js";
+import { CommunityPage, TickerPosts } from "./community/Community.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -457,7 +458,7 @@ export default function StockScope() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 22 }}>
-          {[["markets", "Markets", BarChart3], ["news", "News", Newspaper], ["screener", "Screener", LayoutGrid]].map(([id, label, Icon]) => (
+          {[["markets", "Markets", BarChart3], ["news", "News", Newspaper], ["screener", "Screener", LayoutGrid], ["community", "Community", MessageSquare]].map(([id, label, Icon]) => (
             <div key={id} className="navitem" onClick={() => setPage(id)} style={{
               cursor: "pointer", fontSize: 14.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 7,
               color: page === id ? "#10b981" : "#64748b",
@@ -490,6 +491,7 @@ export default function StockScope() {
       {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} />}
       {page === "news" && <NewsPage open={open} />}
       {page === "screener" && <ScreenerPage open={open} />}
+      {page === "community" && <CommunityPage onOpenTicker={open} onOpenAuth={() => setAuthOpen(true)} />}
 
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "10px 28px 40px", display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 11.5 }}>
         <Info size={13} /> {LIVE
@@ -728,7 +730,7 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
           </div>
 
           <div style={{ display: "flex", gap: 6, marginBottom: 14, borderBottom: "1px solid #161b24" }}>
-            {[["news", "News", Newspaper], ["sec", "SEC Filings", FileText], ["events", "Live Events", Landmark]].map(([id, label, Icon]) => (
+            {[["news", "News", Newspaper], ["sec", "SEC Filings", FileText], ["events", "Live Events", Landmark], ["community", "Community", MessageSquare]].map(([id, label, Icon]) => (
               <div key={id} onClick={() => setTab(id)} style={{ padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 600, color: tab === id ? "#10b981" : "#64748b", borderBottom: tab === id ? "2px solid #10b981" : "2px solid transparent", display: "flex", alignItems: "center", gap: 7, marginBottom: -1 }}><Icon size={15} /> {label}</div>
             ))}
           </div>
@@ -752,6 +754,7 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
             </a>
           ))}
           {tab === "events" && eventsFor(stock).map((ev, i) => <EventRow key={i} ev={ev} />)}
+          {tab === "community" && <TickerPosts ticker={active} onOpenTicker={open} />}
         </>)}
       </div>
     </div>
