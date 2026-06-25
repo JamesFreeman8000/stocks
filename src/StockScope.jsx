@@ -5,13 +5,13 @@ import {
 import {
   Search, Newspaper, FileText, Landmark, Star, Circle, BarChart3,
   Sparkles, Calendar, AlertCircle, LayoutGrid, ExternalLink, X, Globe,
-  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut, MessageSquare,
+  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut, MessageSquare, Settings,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import AuthModal from "./auth/AuthModal.jsx";
 import SettingsModal from "./auth/SettingsModal.jsx";
 import { useWatchlist } from "./auth/useWatchlist.js";
-import { CommunityPage, TickerPosts } from "./community/Community.jsx";
+import { CommunityPage, TickerPosts, ProfilePage } from "./community/Community.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -420,7 +420,11 @@ export default function StockScope() {
   const [notFound, setNotFound] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileUserId, setProfileUserId] = useState(null);
   const { user, profile, signOut, supabaseEnabled } = useAuth();
+
+  // open a user's profile page
+  const openProfile = (uid) => { setProfileUserId(uid); setPage("profile"); };
 
   const open = (t) => {
     const T = String(t || "").trim().toUpperCase();
@@ -470,12 +474,13 @@ export default function StockScope() {
         {supabaseEnabled && (
           user ? (
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 14 }}>
-              <div onClick={() => setSettingsOpen(true)} style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
+              <div onClick={() => openProfile(user.id)} title="My profile" style={{ width: 32, height: 32, borderRadius: "50%", overflow: "hidden", background: "#1e3a8a", display: "grid", placeItems: "center", fontSize: 13, fontWeight: 700, color: "#fff", cursor: "pointer" }}>
                 {profile?.avatar_url && profile?.avatar_status === "approved"
                   ? <img src={profile.avatar_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                   : (profile?.username?.[0]?.toUpperCase() || <User size={16} />)}
               </div>
-              <span onClick={() => setSettingsOpen(true)} style={{ fontSize: 13.5, fontWeight: 600, color: "#cbd5e1", cursor: "pointer" }}>{profile?.username || "Account"}</span>
+              <span onClick={() => openProfile(user.id)} style={{ fontSize: 13.5, fontWeight: 600, color: "#cbd5e1", cursor: "pointer" }} title="My profile">{profile?.username || "Account"}</span>
+              <Settings size={16} color="#64748b" onClick={() => setSettingsOpen(true)} style={{ cursor: "pointer" }} title="Settings" />
               <LogOut size={16} color="#64748b" onClick={signOut} style={{ cursor: "pointer" }} title="Log out" />
             </div>
           ) : (
@@ -491,7 +496,8 @@ export default function StockScope() {
       {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} />}
       {page === "news" && <NewsPage open={open} />}
       {page === "screener" && <ScreenerPage open={open} />}
-      {page === "community" && <CommunityPage onOpenTicker={open} onOpenAuth={() => setAuthOpen(true)} />}
+      {page === "community" && <CommunityPage onOpenTicker={open} onOpenAuth={() => setAuthOpen(true)} onOpenProfile={openProfile} />}
+      {page === "profile" && profileUserId && <ProfilePage userId={profileUserId} onOpenTicker={open} onOpenProfile={openProfile} onBack={() => setPage("community")} />}
 
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "10px 28px 40px", display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 11.5 }}>
         <Info size={13} /> {LIVE
@@ -754,7 +760,7 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
             </a>
           ))}
           {tab === "events" && eventsFor(stock).map((ev, i) => <EventRow key={i} ev={ev} />)}
-          {tab === "community" && <TickerPosts ticker={active} onOpenTicker={open} />}
+          {tab === "community" && <TickerPosts ticker={active} onOpenTicker={open} onOpenProfile={openProfile} />}
         </>)}
       </div>
     </div>
