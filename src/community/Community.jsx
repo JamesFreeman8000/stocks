@@ -85,7 +85,16 @@ function Composer({ onPosted, onOpenAuth }) {
     });
     if (!res.ok) { setError(res.error); return; }
     setBody(""); setLastPostAt(Date.now());
-    onPosted(res.post);
+    // attach the current user's profile so the new post shows the right name/avatar
+    onPosted({
+      ...res.post,
+      profiles: {
+        username: profile?.username,
+        avatar_url: profile?.avatar_url,
+        avatar_status: profile?.avatar_status,
+        tier: profile?.tier,
+      },
+    });
   }
 
   return (
@@ -121,7 +130,7 @@ export function CommunityPage({ onOpenTicker, onOpenAuth }) {
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 18px", letterSpacing: "-.02em", display: "flex", alignItems: "center", gap: 10 }}>
         <MessageSquare size={24} color="#10b981" /> Community
       </h1>
-      <Composer onPosted={(p) => setPosts((cur) => [{ ...p, profiles: p.profiles }, ...(cur || [])])} onOpenAuth={onOpenAuth} />
+      <Composer onPosted={(p) => setPosts((cur) => [p, ...(cur || [])])} onOpenAuth={onOpenAuth} />
       {posts === null && <div style={{ padding: 30, textAlign: "center", color: "#64748b" }}><Loader2 size={22} style={{ animation: "spin 1s linear infinite" }} /></div>}
       {posts && posts.length === 0 && <div style={{ padding: 30, textAlign: "center", color: "#64748b", fontSize: 13.5 }}>No posts yet. Be the first.</div>}
       {posts && posts.map((p) => <PostCard key={p.id} post={p} onOpenTicker={onOpenTicker} />)}

@@ -70,11 +70,11 @@ export function usePosts() {
     if (!supabase) return [];
     const { data, error } = await supabase
       .from("posts")
-      .select("id, body, image_url, image_status, created_at, user_id, profiles(username, avatar_url, avatar_status, tier)")
+      .select("id, body, image_url, image_status, created_at, user_id, profiles!posts_user_id_profiles_fkey(username, avatar_url, avatar_status, tier)")
       .eq("status", "visible")
       .order("created_at", { ascending: false })
       .limit(limit);
-    if (error) return [];
+    if (error) { console.error("fetchFeed", error); return []; }
     return data || [];
   }, []);
 
@@ -91,7 +91,7 @@ export function usePosts() {
     if (!ids.length) return [];
     const { data } = await supabase
       .from("posts")
-      .select("id, body, image_url, image_status, created_at, user_id, profiles(username, avatar_url, avatar_status, tier)")
+      .select("id, body, image_url, image_status, created_at, user_id, profiles!posts_user_id_profiles_fkey(username, avatar_url, avatar_status, tier)")
       .in("id", ids)
       .eq("status", "visible")
       .order("created_at", { ascending: false });
