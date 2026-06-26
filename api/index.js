@@ -7,6 +7,7 @@ import {
   getQuote, getHistory, getNews, getMarketNews, getFilings,
   search, getScreener, getAnalystEvents, providerStatus,
 } from "../providers/index.js";
+import { moderateImage, moderationEnabled } from "../providers/moderation.js";
 
 const cache = new Map();
 function cacheGet(k){const h=cache.get(k);if(!h)return null;if(Date.now()>h.expires){cache.delete(k);return null;}return h.value;}
@@ -48,7 +49,24 @@ export default async function handler(req, res) {
   const route = parts[0], arg = parts[1];
 
   try {
-    if (route === "health") return res.status(200).json({ ok: true, providers: providerStatus() });
+    if (route === "health") return res.status(200).json({ ok: true, providers: providerStatus(), moderation: moderationEnabled });
+
+    // Image moderation — POST { imageUrl } -> { verdict, scores }
+    if (route === "moderate") {
+      let body = req.body;
+      if (!body || typeof body === "string") {
+        try { body = JSON.parse(body || "{}"); } catch { body = {}; }
+      }
+      if (!body.imageUrl) {
+        // also support reading the raw stream if body wasn't parsed
+        const chunks = [];
+        for await (const c of req) chunks.push(c);
+        if (chunks.length) { try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch {} }
+      }
+      if (!body.imageUrl) return res.status(400).json({ error: "imageUrl required" });
+      const result = await moderateImage(body.imageUrl);
+      return res.status(200).json(result);
+    }
 
     if (route === "quote") {
       const s = arg.toUpperCase();
