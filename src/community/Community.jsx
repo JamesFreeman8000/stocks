@@ -7,7 +7,7 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import { usePosts } from "./usePosts.js";
 import { useImageUpload } from "./useImageUpload.js";
 import { tokenizePost } from "./postUtils.js";
-import { MessageSquare, Send, AlertCircle, Loader2, BadgeCheck, Image as ImageIcon, Trash2, ArrowLeft } from "lucide-react";
+import { MessageSquare, Send, AlertCircle, Loader2, BadgeCheck, Image as ImageIcon, Trash2, ArrowLeft, X } from "lucide-react";
 
 const timeAgo = (ts) => {
   const s = Math.floor((Date.now() - new Date(ts).getTime()) / 1000);
