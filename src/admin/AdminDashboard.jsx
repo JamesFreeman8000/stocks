@@ -7,7 +7,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { supabase } from "../auth/supabaseClient.js";
 import { useSupport } from "../support/useSupport.js";
-import { Shield, Check, X, Loader2, ImageOff, Inbox, Send, ArrowLeft, UserPlus } from "lucide-react";
+import { useAppSettings } from "./useAppSettings.js";
+import { Shield, Check, X, Loader2, ImageOff, Inbox, Send, ArrowLeft, UserPlus, Power } from "lucide-react";
 
 export default function AdminDashboard() {
   const { isAdmin } = useAuth();
@@ -28,6 +29,7 @@ export default function AdminDashboard() {
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 18px", letterSpacing: "-.02em", display: "flex", alignItems: "center", gap: 10 }}>
         <Shield size={24} color="#10b981" /> Admin Dashboard
       </h1>
+      <PostingKillSwitch />
       <div style={{ display: "flex", gap: 6, marginBottom: 18, borderBottom: "1px solid #161b24" }}>
         {[["queue", "Image Moderation"], ["support", "Support"], ["users", "Users"]].map(([id, label]) => (
           <div key={id} onClick={() => setTab(id)} style={{ padding: "10px 16px", cursor: "pointer", fontSize: 14, fontWeight: 600, color: tab === id ? "#10b981" : "#64748b", borderBottom: tab === id ? "2px solid #10b981" : "2px solid transparent", marginBottom: -1 }}>{label}</div>
@@ -225,6 +227,33 @@ function UsersAdmin() {
           </button>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ---- POSTING KILL SWITCH ----
+function PostingKillSwitch() {
+  const { user } = useAuth();
+  const { postsEnabled, setPosts, loading, saving } = useAppSettings();
+
+  if (loading) return null;
+  const on = postsEnabled;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 18px", marginBottom: 20, borderRadius: 12, background: on ? "#0d1620" : "#1f1416", border: `1px solid ${on ? "#16283a" : "#4c1d1d"}` }}>
+      <Power size={20} color={on ? "#34d399" : "#f87171"} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, color: on ? "#e2e8f0" : "#fca5a5" }}>
+          Community posting is {on ? "ON" : "OFF"}
+        </div>
+        <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>
+          {on ? "Users can create posts normally. Turn off to instantly block all new posts." : "All new posts are blocked. Existing posts stay visible. Turn back on when resolved."}
+        </div>
+      </div>
+      <button onClick={() => setPosts(!on, user?.id)} disabled={saving}
+        style={{ display: "flex", alignItems: "center", gap: 7, background: on ? "#1f1416" : "#0d1f1a", color: on ? "#fca5a5" : "#34d399", border: `1px solid ${on ? "#4c1d1d" : "#16332b"}`, borderRadius: 9, padding: "10px 16px", fontWeight: 700, fontSize: 13.5, cursor: saving ? "default" : "pointer", whiteSpace: "nowrap" }}>
+        {saving ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Power size={15} />}
+        {on ? "Disable posting" : "Enable posting"}
+      </button>
     </div>
   );
 }
