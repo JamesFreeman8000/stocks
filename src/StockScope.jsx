@@ -892,14 +892,20 @@ function NewsPage({ open }) {
 }
 
 /* ============================ SCREENER ============================ */
+// ── SCREENER CATEGORIES ──────────────────────────────────────────────
+// TRIMMED to the 7 categories that free data (Yahoo/Finnhub price+volume+
+// market cap) supports with REAL, correctly-sorted results.
+//
+// TODO (future / paid data): Yahoo Finance shows ~34 categories — pre-market,
+// after-hours, highest net income/cash, profit-per-employee, penny/pink sheet,
+// all-time high/low, etc. Those need FUNDAMENTAL + pre/post-market + reference
+// data that the free APIs don't provide. To enable all 34, add a paid screener
+// data source (Financial Modeling Prep, Polygon.io, or a paid Finnhub tier,
+// ~$30–100/mo) and expand SCREEN_SORT in providers/index.js accordingly.
+// Good candidate to gate behind Premium once there's subscription revenue.
 const SCREENER_CATS = [
-  "All stocks","Top gainers","Biggest losers","Large-cap","Small-cap","Largest employers",
-  "High-dividend","Highest net income","Highest cash","Highest profit per employee",
-  "Highest revenue per employee","Most active","Pre-market gainers","Pre-market losers",
-  "Pre-market most active","Pre-market gap","After-hours gainers","After-hours losers",
-  "After-hours most active","Unusual volume","Most volatile","High beta","Best performing",
-  "Highest revenue","Most expensive","Penny stocks","Pink sheet","Overbought","Oversold",
-  "All-time high","All-time low","52-week high","52-week low",
+  "Top gainers", "Biggest losers", "Most active",
+  "Most volatile", "Large-cap", "Small-cap", "Best performing",
 ];
 function ScreenerPage({ open }) {
   const [cat, setCat] = useState("Top gainers");
