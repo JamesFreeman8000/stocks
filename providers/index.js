@@ -7,7 +7,10 @@
 // If no keys are set, everything falls back to Yahoo (unofficial, no key).
 
 import YahooFinance from "yahoo-finance2";
-const yf = new YahooFinance();
+// validation:false -> return partial data instead of throwing when Yahoo's
+// response doesn't match the library schema (a known issue that breaks the
+// screener for day_gainers/day_losers). suppressNotices quiets the survey log.
+const yf = new YahooFinance({ validation: { logErrors: false }, suppressNotices: ["yahooSurvey", "ripHistorical"] });
 
 const FINNHUB_KEY = process.env.FINNHUB_KEY || "";
 const ALPACA_KEY_ID = process.env.ALPACA_KEY_ID || "";
@@ -286,49 +289,62 @@ export async function search(q) {
 }
 
 /* ---------------- SCREENER ---------------- */
-// Finnhub has no general screener on free tier; Yahoo's predefined screeners
-// power the category pills.
-// Yahoo's predefined screeners we can actually use (free). Categories not
-// covered here map to the closest available one so the tab still returns data.
-const SCREEN_MAP = {
-  "Top gainers": "day_gainers", "Biggest losers": "day_losers", "Most active": "most_actives",
-  "Small-cap": "small_cap_gainers", "Overbought": "day_gainers", "Oversold": "day_losers",
-  "52-week high": "day_gainers", "52-week low": "day_losers",
-  "All stocks": "most_actives", "Large-cap": "most_actives",
-  "Most volatile": "day_gainers", "High beta": "day_gainers", "Unusual volume": "most_actives",
-  "Best performing": "day_gainers", "Worst performing": "day_losers",
-  // Pre-market / after-hours / fundamentals aren't in Yahoo's free predefined
-  // screeners — fall back to a sensible proxy so the tab isn't broken.
-  "Pre-market gainers": "day_gainers", "Pre-market losers": "day_losers", "Pre-market most active": "most_actives",
-  "Pre-market gap": "day_gainers", "After-hours gainers": "day_gainers", "After-hours losers": "day_losers",
-  "After-hours most active": "most_actives", "High-dividend": "most_actives",
-  "Highest net income": "most_actives", "Highest cash": "most_actives",
-  "Highest profit per employee": "most_actives", "Highest revenue per employee": "most_actives",
-  "Largest employers": "most_actives",
+
+// How each category should be derived. We pull a reliable pool of liquid
+// stocks, then SORT it for the category — so "gainers" really are the most up,
+// "losers" the most down, etc. (Yahoo's predefined gainers list is unreliable.)
+const SCREEN_SORT = {
+  "Top gainers": (a, b) => b.changePct - a.changePct,
+  "Best performing": (a, b) => b.changePct - a.changePct,
+  "Pre-market gainers": (a, b) => b.changePct - a.changePct,
+  "After-hours gainers": (a, b) => b.changePct - a.changePct,
+  "Biggest losers": (a, b) => a.changePct - b.changePct,
+  "Worst performing": (a, b) => a.changePct - b.changePct,
+  "Pre-market losers": (a, b) => a.changePct - b.changePct,
+  "After-hours losers": (a, b) => a.changePct - b.changePct,
+  "Most active": (a, b) => (b.volume || 0) - (a.volume || 0),
+  "Unusual volume": (a, b) => (b.volume || 0) - (a.volume || 0),
+  "Pre-market most active": (a, b) => (b.volume || 0) - (a.volume || 0),
+  "After-hours most active": (a, b) => (b.volume || 0) - (a.volume || 0),
+  "Most volatile": (a, b) => Math.abs(b.changePct) - Math.abs(a.changePct),
+  "High beta": (a, b) => Math.abs(b.changePct) - Math.abs(a.changePct),
+  "Largest companies": (a, b) => (b.marketCap || 0) - (a.marketCap || 0),
+  "Large-cap": (a, b) => (b.marketCap || 0) - (a.marketCap || 0),
+  "Highest net income": (a, b) => (b.marketCap || 0) - (a.marketCap || 0),
+  "Highest cash": (a, b) => (b.marketCap || 0) - (a.marketCap || 0),
+  "Small-cap": (a, b) => (a.marketCap || 0) - (b.marketCap || 0),
 };
 
-export async function getScreener(cat) {
-  const scrId = SCREEN_MAP[cat] || "most_actives";
-  try {
-    const r = await yf.screener({ scrIds: scrId, count: 25 });
-    const rows = (r?.quotes || []).map((q) => ({
-      ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
-      changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
-    }));
-    if (rows.length) return rows;
-  } catch (e) { /* fall through to fallback below */ }
+let _poolCache = { at: 0, rows: [] };
 
-  // Fallback: if Yahoo's screener fails, try the most_actives default once.
-  if (scrId !== "most_actives") {
+async function getStockPool() {
+  // Cache the pool for 60s so rapid tab switches don't re-hit Yahoo.
+  if (Date.now() - _poolCache.at < 60_000 && _poolCache.rows.length) return _poolCache.rows;
+  const pools = ["most_actives", "day_gainers", "day_losers"];
+  const seen = new Set(), rows = [];
+  for (const scr of pools) {
     try {
-      const r2 = await yf.screener({ scrIds: "most_actives", count: 25 });
-      return (r2?.quotes || []).map((q) => ({
-        ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
-        changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
-      }));
-    } catch (e) { /* give up gracefully */ }
+      const r = await yf.screener({ scrIds: scr, count: 50 });
+      for (const q of (r?.quotes || [])) {
+        if (!q.symbol || seen.has(q.symbol)) continue;
+        if (q.regularMarketChangePercent == null) continue;
+        seen.add(q.symbol);
+        rows.push({
+          ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
+          changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
+        });
+      }
+    } catch (e) { /* skip this pool, try the next */ }
   }
-  return []; // never throw — an empty list is handled by the UI
+  if (rows.length) _poolCache = { at: Date.now(), rows };
+  return rows;
+}
+
+export async function getScreener(cat) {
+  const pool = await getStockPool();
+  if (!pool.length) return [];
+  const sorter = SCREEN_SORT[cat] || SCREEN_SORT["Most active"];
+  return [...pool].sort(sorter).slice(0, 25);
 }
 
 export function providerStatus() {
