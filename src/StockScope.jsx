@@ -5,13 +5,14 @@ import {
 import {
   Search, Newspaper, FileText, Landmark, Star, Circle, BarChart3,
   Sparkles, Calendar, AlertCircle, LayoutGrid, ExternalLink, X, Globe,
-  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut, MessageSquare, Settings,
+  ArrowUpRight, Filter, RefreshCw, Info, User, LogOut, MessageSquare, Settings, Shield,
 } from "lucide-react";
 import { useAuth } from "./auth/AuthContext.jsx";
 import AuthModal from "./auth/AuthModal.jsx";
 import SettingsModal from "./auth/SettingsModal.jsx";
 import { useWatchlist } from "./auth/useWatchlist.js";
 import { CommunityPage, TickerPosts, ProfilePage } from "./community/Community.jsx";
+import AdminDashboard from "./admin/AdminDashboard.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -421,7 +422,7 @@ export default function StockScope() {
   const [authOpen, setAuthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileUserId, setProfileUserId] = useState(null);
-  const { user, profile, signOut, supabaseEnabled } = useAuth();
+  const { user, profile, signOut, supabaseEnabled, isAdmin } = useAuth();
 
   // open a user's profile page
   const openProfile = (uid) => { setProfileUserId(uid); setPage("profile"); };
@@ -462,7 +463,7 @@ export default function StockScope() {
           </div>
         </div>
         <div style={{ display: "flex", gap: 22 }}>
-          {[["markets", "Markets", BarChart3], ["news", "News", Newspaper], ["screener", "Screener", LayoutGrid], ["community", "Community", MessageSquare]].map(([id, label, Icon]) => (
+          {[["markets", "Markets", BarChart3], ["news", "News", Newspaper], ["screener", "Screener", LayoutGrid], ["community", "Community", MessageSquare], ...(isAdmin ? [["admin", "Admin", Shield]] : [])].map(([id, label, Icon]) => (
             <div key={id} className="navitem" onClick={() => setPage(id)} style={{
               cursor: "pointer", fontSize: 14.5, fontWeight: 600, display: "flex", alignItems: "center", gap: 7,
               color: page === id ? "#10b981" : "#64748b",
@@ -498,6 +499,7 @@ export default function StockScope() {
       {page === "screener" && <ScreenerPage open={open} />}
       {page === "community" && <CommunityPage onOpenTicker={open} onOpenAuth={() => setAuthOpen(true)} onOpenProfile={openProfile} />}
       {page === "profile" && profileUserId && <ProfilePage userId={profileUserId} onOpenTicker={open} onOpenProfile={openProfile} onBack={() => setPage("community")} />}
+      {page === "admin" && <AdminDashboard />}
 
       <div style={{ maxWidth: 1320, margin: "0 auto", padding: "10px 28px 40px", display: "flex", alignItems: "center", gap: 8, color: "#475569", fontSize: 11.5 }}>
         <Info size={13} /> {LIVE
@@ -623,6 +625,16 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
     return stock ? buildSeries(stock, range) : [];
   }, [active, range, stock, liveCandles, liveEvents]);
   const chartLoading = liveCandles === undefined;
+  // Y-axis domain that hugs the actual price range, so the line fills the chart
+  // instead of looking flat. Pad by ~8% of the high-low spread (min 0.5% of price).
+  const yDomain = useMemo(() => {
+    const prices = series.map((p) => p.price).filter((v) => typeof v === "number");
+    if (!prices.length) return ["dataMin", "dataMax"];
+    const lo = Math.min(...prices), hi = Math.max(...prices);
+    const spread = hi - lo;
+    const pad = Math.max(spread * 0.08, hi * 0.005); // proportional, never zero
+    return [+(lo - pad).toFixed(2), +(hi + pad).toFixed(2)];
+  }, [series]);
   const changePct = stock ? (stock.change / stock.prevClose) * 100 : 0;
   const up = stock && stock.change >= 0;
   const inWatch = watchlist.includes(active);
@@ -717,7 +729,7 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
                 <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={up ? "#10b981" : "#f87171"} stopOpacity={.32} /><stop offset="100%" stopColor={up ? "#10b981" : "#f87171"} stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid stroke="#161b24" strokeDasharray="2 4" vertical={false} />
                 <XAxis dataKey="i" type="number" domain={[0, series.length - 1]} ticks={series._ticks || []} tickFormatter={(idx) => series[idx]?.label ?? ""} tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} />
-                <YAxis orientation="right" domain={["dataMin - 0.3", "dataMax + 0.3"]} tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} width={56} tickFormatter={(v) => v.toFixed(2)} />
+                <YAxis orientation="right" domain={yDomain} tick={{ fill: "#475569", fontSize: 11 }} axisLine={false} tickLine={false} width={56} tickFormatter={(v) => v.toFixed(2)} />
                 <Tooltip content={<ChartTooltip />} cursor={<Crosshair />} />
                 <Area type="linear" dataKey="price" stroke={up ? "#10b981" : "#f87171"} strokeWidth={1.3} fill="url(#g)" dot={<EventDot />} activeDot={{ r: 4, fill: up ? "#10b981" : "#f87171", stroke: "#0b0e14", strokeWidth: 2 }} isAnimationActive={false} />
               </AreaChart>
