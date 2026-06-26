@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { usePosts } from "./usePosts.js";
+import { useImageUpload } from "./useImageUpload.js";
 import { tokenizePost } from "./postUtils.js";
 import { MessageSquare, Send, AlertCircle, Loader2, BadgeCheck, Image as ImageIcon, Trash2, ArrowLeft } from "lucide-react";
 
@@ -88,9 +89,12 @@ export function PostCard({ post, onOpenTicker, onOpenProfile, onDeleted }) {
 function Composer({ onPosted, onOpenAuth }) {
   const { user, profile, isPremium, accountAgeMinutes } = useAuth();
   const { createPost, posting } = usePosts();
+  const { uploadAndModerate, uploading } = useImageUpload();
   const [body, setBody] = useState("");
   const [error, setError] = useState("");
   const [lastPostAt, setLastPostAt] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
 
   if (!user) {
     return (
@@ -103,13 +107,18 @@ function Composer({ onPosted, onOpenAuth }) {
 
   async function submit() {
     setError("");
+    let imageUrl = null, imageStatus = "none";
+    if (imageFile) {
+      const up = await uploadAndModerate(imageFile, "post-images", user.id);
+      if (!up.ok) { setError(up.error); return; }
+      imageUrl = up.imageUrl; imageStatus = up.status;
+    }
     const res = await createPost({
-      body,
+      body, imageUrl, imageStatus,
       ctx: { userId: user.id, accountAgeMinutes, isPremium, lastPostAt },
     });
     if (!res.ok) { setError(res.error); return; }
-    setBody(""); setLastPostAt(Date.now());
-    // attach the current user's profile so the new post shows the right name/avatar
+    setBody(""); setImageFile(null); setImagePreview(null); setLastPostAt(Date.now());
     onPosted({
       ...res.post,
       profiles: {
@@ -121,20 +130,42 @@ function Composer({ onPosted, onOpenAuth }) {
     });
   }
 
+  function pickImage(e) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setImageFile(f);
+    setImagePreview(URL.createObjectURL(f));
+    setError("");
+  }
+
   return (
     <div style={{ background: "#0f141c", border: "1px solid #1a2230", borderRadius: 13, padding: 16, marginBottom: 16 }}>
       <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3}
         placeholder="Share your take… use $TICKER to tag a stock (e.g. $ARTV). No links."
         style={{ width: "100%", background: "#11151d", border: "1px solid #232b38", borderRadius: 10, padding: "11px 13px", color: "#e2e8f0", fontSize: 14, outline: "none", resize: "vertical", fontFamily: "inherit" }} />
+      {imagePreview && (
+        <div style={{ position: "relative", marginTop: 10, display: "inline-block" }}>
+          <img src={imagePreview} alt="" style={{ maxHeight: 160, borderRadius: 10, border: "1px solid #232b38" }} />
+          <div onClick={() => { setImageFile(null); setImagePreview(null); }} style={{ position: "absolute", top: 6, right: 6, background: "rgba(0,0,0,0.7)", borderRadius: "50%", width: 24, height: 24, display: "grid", placeItems: "center", cursor: "pointer" }}>
+            <X size={14} color="#fff" />
+          </div>
+        </div>
+      )}
       {error && (
         <div style={{ display: "flex", gap: 7, alignItems: "center", color: "#fca5a5", fontSize: 12.5, marginTop: 8 }}>
           <AlertCircle size={14} /> {error}
         </div>
       )}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10 }}>
-        <span style={{ fontSize: 11.5, color: "#475569" }}>{body.length}/1000{!isPremium && " · Free: 1 post / 5 min"}</span>
-        <button onClick={submit} disabled={posting} style={{ display: "flex", alignItems: "center", gap: 7, background: "#10b981", color: "#04130c", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 13.5, cursor: posting ? "default" : "pointer", opacity: posting ? 0.6 : 1 }}>
-          {posting ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={15} />} Post
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12.5, color: "#64748b", cursor: "pointer" }}>
+            <ImageIcon size={16} /> Photo
+            <input type="file" accept="image/*" onChange={pickImage} style={{ display: "none" }} />
+          </label>
+          <span style={{ fontSize: 11.5, color: "#475569" }}>{body.length}/1000{!isPremium && " · Free: 1 post / 5 min"}</span>
+        </div>
+        <button onClick={submit} disabled={posting || uploading} style={{ display: "flex", alignItems: "center", gap: 7, background: "#10b981", color: "#04130c", border: "none", borderRadius: 9, padding: "9px 16px", fontWeight: 700, fontSize: 13.5, cursor: (posting||uploading) ? "default" : "pointer", opacity: (posting||uploading) ? 0.6 : 1 }}>
+          {(posting || uploading) ? <Loader2 size={15} style={{ animation: "spin 1s linear infinite" }} /> : <Send size={15} />} {uploading ? "Checking image…" : "Post"}
         </button>
       </div>
     </div>

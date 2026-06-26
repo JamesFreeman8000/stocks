@@ -18,7 +18,7 @@ export function usePosts() {
 
   // Create a post. `ctx` = { userId, accountAgeMinutes, isPremium, lastPostAt }.
   // Returns { ok, error, post }.
-  const createPost = useCallback(async ({ body, imageUrl, ctx }) => {
+  const createPost = useCallback(async ({ body, imageUrl, imageStatus, ctx }) => {
     if (!supabase) return { ok: false, error: "Not connected." };
     const text = (body || "").trim();
 
@@ -45,7 +45,7 @@ export function usePosts() {
       // insert the post
       const { data: post, error } = await supabase
         .from("posts")
-        .insert({ user_id: ctx.userId, body: text, image_url: imageUrl || null, image_status: imageUrl ? "approved" : "none" })
+        .insert({ user_id: ctx.userId, body: text, image_url: imageUrl || null, image_status: imageUrl ? (imageStatus || "pending") : "none" })
         .select()
         .single();
       if (error) throw error;
