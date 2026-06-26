@@ -827,20 +827,45 @@ function EventRow({ ev }) {
 /* ============================ NEWS ============================ */
 function NewsPage({ open }) {
   const [cat, setCat] = useState("Top Stories");
-  const live = useLive(`/api/news`, []);
+
+  // Map each tab to: a real Finnhub API category, plus optional keyword filter.
+  // Finnhub only has general/forex/crypto/merger, so the rest pull the general
+  // feed and filter by keywords in the headline/summary.
+  const TAB_CONFIG = {
+    "Top Stories":      { api: "general", keywords: null },
+    "Markets":          { api: "general", keywords: null },
+    "Earnings":         { api: "general", keywords: ["earnings", "eps", "revenue", "profit", "quarterly", "guidance", "beat", "miss"] },
+    "Tech":             { api: "general", keywords: ["tech", "ai", "chip", "semiconductor", "software", "apple", "microsoft", "nvidia", "google", "meta", "amazon"] },
+    "Crypto":           { api: "crypto",  keywords: null },
+    "Economy":          { api: "general", keywords: ["economy", "inflation", "gdp", "jobs", "unemployment", "consumer", "spending", "recession"] },
+    "Federal Reserve":  { api: "general", keywords: ["fed", "federal reserve", "powell", "interest rate", "rate cut", "rate hike", "fomc", "monetary"] },
+    "Congress & Policy":{ api: "general", keywords: ["congress", "senate", "house", "policy", "regulation", "bill", "law", "tariff", "white house", "sec "] },
+  };
+  const cfg = TAB_CONFIG[cat] || TAB_CONFIG["Top Stories"];
+  const live = useLive(`/api/news?cat=${cfg.api}`, [cfg.api]);
   const liveLoading = live === undefined;
-  // Live feed is a single market stream; bundled has categories. When live,
-  // we show the live items for every category (Yahoo doesn't split by these).
-  const items = (live && Array.isArray(live.items) && live.items.length) ? live.items : (NEWS[cat] || []);
+
+  // Filter the live feed by keywords if this tab needs it.
+  let items = (live && Array.isArray(live.items) && live.items.length) ? live.items : (NEWS[cat] || []);
+  if (cfg.keywords && Array.isArray(items)) {
+    const kw = cfg.keywords;
+    const filtered = items.filter((n) => {
+      const hay = `${n.title || ""} ${n.summary || ""}`.toLowerCase();
+      return kw.some((k) => hay.includes(k));
+    });
+    // if filtering leaves too few, fall back to showing the unfiltered feed
+    items = filtered.length >= 3 ? filtered : items;
+  }
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "26px 28px" }}>
       <h1 style={{ fontSize: 26, fontWeight: 800, margin: "0 0 18px", letterSpacing: "-.02em", display: "flex", alignItems: "center", gap: 10 }}><Newspaper size={24} color="#10b981" /> Market News</h1>
       <div className="scrollx" style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 14, marginBottom: 8 }}>
         {NEWS_CATS.map((c) => (
-          <div key={c} className="pill" onClick={() => setCat(c)} style={{ whiteSpace: "nowrap", padding: "7px 15px", borderRadius: 999, fontSize: 13, fontWeight: 600, border: "1px solid", borderColor: cat === c ? "#10b981" : "#232b38", color: cat === c ? "#10b981" : "#94a3b8", background: cat === c ? "#0d1f1a" : "#11151d" }}>{c}</div>
+          <div key={c} className="pill" onClick={() => setCat(c)} style={{ whiteSpace: "nowrap", padding: "7px 15px", borderRadius: 999, fontSize: 13, fontWeight: 600, border: "1px solid", borderColor: cat === c ? "#10b981" : "#232b38", color: cat === c ? "#10b981" : "#94a3b8", background: cat === c ? "#0d1f1a" : "#11151d", cursor: "pointer" }}>{c}</div>
         ))}
       </div>
       {liveLoading && <div style={{ padding: "40px", textAlign: "center", color: "#64748b", fontSize: 14 }}>Loading market news…</div>}
+      {!liveLoading && items.length === 0 && <div style={{ padding: "40px", textAlign: "center", color: "#64748b", fontSize: 14 }}>No {cat} stories right now. Try another category.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         {items.map((n, i) => (
           <a key={i} href={n.url} target="_blank" rel="noreferrer" className="card" style={{ display: "block", background: "#0f141c", border: "1px solid #1a2230", borderRadius: 13, padding: "16px", cursor: "pointer" }}>
