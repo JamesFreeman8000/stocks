@@ -189,6 +189,20 @@ function screen(cat) {
   return rows.slice(0, 20);
 }
 
+// Determine the current US market session from Eastern Time.
+// Returns { key, label } where key is pre | regular | after | overnight | weekend.
+function marketSession() {
+  const now = new Date();
+  const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));
+  const day = et.getDay(); // 0 Sun ... 6 Sat
+  const mins = et.getHours() * 60 + et.getMinutes();
+  if (day === 0 || day === 6) return { key: "weekend", label: "Markets closed · weekend" };
+  if (mins >= 240 && mins < 570) return { key: "pre", label: "Pre-market" };       // 4:00–9:30
+  if (mins >= 570 && mins < 960) return { key: "regular", label: "Market open" };    // 9:30–16:00
+  if (mins >= 960 && mins < 1200) return { key: "after", label: "After hours" };     // 16:00–20:00
+  return { key: "overnight", label: "Overnight · markets closed" };                  // 20:00–4:00
+}
+
 const fmt = (n) => (n == null || n === "" ? "--" : Number(n).toLocaleString());
 
 /* ---------------- deterministic spiky chart series ----------------
@@ -726,10 +740,32 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
               <span style={{ fontSize: 17, fontWeight: 600, color: up ? "#34d399" : "#f87171" }}>{up ? "+" : ""}{rangeChange.toFixed(2)} ({up ? "+" : ""}{changePct.toFixed(2)}%)</span>
               <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>{range === "1D" ? "Today" : range}</span>
             </div>
-            {stock.ah ? (<div style={{ display: "flex", alignItems: "baseline", gap: 8, opacity: .92 }}>
-              <span style={{ fontSize: 23, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{stock.ah.toFixed(2)}</span>
-              <span style={{ fontSize: 14, fontWeight: 600, color: stock.ahChg >= 0 ? "#34d399" : "#f87171" }}>{stock.ahChg >= 0 ? "+" : ""}{stock.ahChg.toFixed(2)} ({((stock.ahChg/stock.price)*100).toFixed(2)}%)</span>
-              <span style={{ fontSize: 11.5, color: "#64748b" }}>After hours</span></div>) : null}
+            {(() => {
+              const sess = marketSession();
+              // pick the relevant extended price for the current session
+              let extPrice = null, extPct = null, extLabel = sess.label;
+              if (sess.key === "pre" && stock.preMarket != null) { extPrice = stock.preMarket; extPct = stock.preMarketPct; extLabel = "Pre-market"; }
+              else if (sess.key === "after" && stock.afterHours != null) { extPrice = stock.afterHours; extPct = stock.afterHoursPct; extLabel = "After hours"; }
+              // if we have an extended price, show price + change; otherwise just the session label
+              if (extPrice != null) {
+                const eUp = (extPct ?? 0) >= 0;
+                return (
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, opacity: .92 }}>
+                    <span style={{ fontSize: 23, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{Number(extPrice).toFixed(2)}</span>
+                    <span style={{ fontSize: 14, fontWeight: 600, color: eUp ? "#34d399" : "#f87171" }}>{eUp ? "+" : ""}{(extPct ?? 0).toFixed(2)}%</span>
+                    <span style={{ fontSize: 11.5, color: "#64748b" }}>{extLabel}</span>
+                  </div>
+                );
+              }
+              // no extended price available — show a small session badge
+              const dot = sess.key === "regular" ? "#34d399" : sess.key === "pre" || sess.key === "after" ? "#fbbf24" : "#64748b";
+              return (
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, display: "inline-block" }} />
+                  <span style={{ fontSize: 12, color: "#94a3b8", fontWeight: 600 }}>{extLabel}</span>
+                </div>
+              );
+            })()}
           </div>
 
           <div style={{ display: "flex", gap: 4, margin: "18px 0 8px" }}>
