@@ -37,6 +37,18 @@ export async function getQuote(symbol) {
       ]);
       if (q && q.c) {
         const m = metric.metric || {};
+        // Finnhub free has no extended-hours price; pull it from Yahoo as a
+        // supplement (pre-market before open, post-market after close).
+        let ext = { pre: null, prePct: null, post: null, postPct: null };
+        try {
+          const yq = await yf.quote(symbol);
+          if (yq) {
+            ext = {
+              pre: yq.preMarketPrice ?? null, prePct: yq.preMarketChangePercent ?? null,
+              post: yq.postMarketPrice ?? null, postPct: yq.postMarketChangePercent ?? null,
+            };
+          }
+        } catch (e) { /* no extended data; fine */ }
         return {
           ticker: symbol,
           name: profile.name || symbol,
@@ -44,7 +56,8 @@ export async function getQuote(symbol) {
           price: q.c,
           change: q.d,
           changePct: q.dp,
-          afterHours: null, afterHoursChange: null, afterHoursPct: null,
+          preMarket: ext.pre, preMarketPct: ext.prePct,
+          afterHours: ext.post, afterHoursPct: ext.postPct,
           prevClose: q.pc, open: q.o, dayLow: q.l, dayHigh: q.h,
           bid: "--", ask: "--",
           wk52Low: m["52WeekLow"] ?? null, wk52High: m["52WeekHigh"] ?? null,
@@ -68,7 +81,8 @@ export async function getQuote(symbol) {
       return {
         ticker: q.symbol, name: q.longName || q.shortName, exchange: q.fullExchangeName,
         price: q.regularMarketPrice, change: q.regularMarketChange, changePct: q.regularMarketChangePercent,
-        afterHours: q.postMarketPrice ?? null, afterHoursChange: q.postMarketChange ?? null, afterHoursPct: q.postMarketChangePercent ?? null,
+        preMarket: q.preMarketPrice ?? null, preMarketPct: q.preMarketChangePercent ?? null,
+        afterHours: q.postMarketPrice ?? null, afterHoursPct: q.postMarketChangePercent ?? null,
         prevClose: q.regularMarketPreviousClose, open: q.regularMarketOpen,
         dayLow: q.regularMarketDayLow, dayHigh: q.regularMarketDayHigh,
         bid: q.bid != null ? `${q.bid} x ${q.bidSize ?? 0}` : "--",
