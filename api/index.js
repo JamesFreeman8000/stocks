@@ -82,7 +82,8 @@ export default async function handler(req, res) {
       return res.status(200).json({ symbol: s, items: await cached(`news:${s}`, TTL.news, () => getNews(s)) });
     }
     if (route === "news") {
-      return res.status(200).json({ items: await cached("news:market", TTL.news, () => getMarketNews()) });
+      const cat = (searchParams.get("cat") || "general").toLowerCase();
+      return res.status(200).json({ cat, items: await cached(`news:market:${cat}`, TTL.news, () => getMarketNews(cat)) });
     }
     if (route === "sec") {
       const s = arg.toUpperCase();
