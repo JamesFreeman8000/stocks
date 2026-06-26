@@ -7,6 +7,7 @@
 import { useState, useCallback } from "react";
 import { supabase } from "../auth/supabaseClient.js";
 import { extractTickers, containsLink, detectSpam } from "./postUtils.js";
+import { arePostsEnabled } from "../admin/useAppSettings.js";
 
 const MIN_ACCOUNT_AGE_MIN = 5;     // must be 5+ min old to post (kills instant bots)
 const FREE_COOLDOWN_MS = 5 * 60_000; // free: 1 post / 5 min
@@ -21,6 +22,10 @@ export function usePosts() {
   const createPost = useCallback(async ({ body, imageUrl, imageStatus, ctx }) => {
     if (!supabase) return { ok: false, error: "Not connected." };
     const text = (body || "").trim();
+
+    // Master kill switch — admins can disable all new posts instantly.
+    const enabled = await arePostsEnabled();
+    if (!enabled) return { ok: false, error: "Posting is temporarily disabled by an admin. Please check back soon." };
 
     // ---- client-side guards (server/RLS still protects the table) ----
     if (!text && !imageUrl) return { ok: false, error: "Write something first." };
