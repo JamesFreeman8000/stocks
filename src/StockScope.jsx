@@ -494,7 +494,7 @@ export default function StockScope() {
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} />}
+      {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} openProfile={openProfile} />}
       {page === "news" && <NewsPage open={open} />}
       {page === "screener" && <ScreenerPage open={open} />}
       {page === "community" && <CommunityPage onOpenTicker={open} onOpenAuth={() => setAuthOpen(true)} onOpenProfile={openProfile} />}
@@ -554,7 +554,7 @@ function GlobalSearch({ onPick }) {
 }
 
 /* ============================ MARKETS ============================ */
-function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicker, toggleTicker }) {
+function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicker, toggleTicker, openProfile }) {
   const { user } = useAuth();
   const [range, setRange] = useState("1D");
   const [tab, setTab] = useState("news");
