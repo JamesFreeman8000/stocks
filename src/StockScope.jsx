@@ -13,6 +13,7 @@ import SettingsModal from "./auth/SettingsModal.jsx";
 import { useWatchlist } from "./auth/useWatchlist.js";
 import { CommunityPage, TickerPosts, ProfilePage } from "./community/Community.jsx";
 import AdminDashboard from "./admin/AdminDashboard.jsx";
+import SupportWidget from "./support/SupportWidget.jsx";
 
 /* =================================================================
    DATA SOURCE CONFIG
@@ -507,6 +508,7 @@ export default function StockScope() {
       </div>
       <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} />
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SupportWidget onOpenAuth={() => setAuthOpen(true)} />
 
       {page === "markets" && <MarketsPage active={active} notFound={notFound} open={open} watchlist={watchlist} addTicker={addTicker} removeTicker={removeTicker} toggleTicker={toggleTicker} openProfile={openProfile} />}
       {page === "news" && <NewsPage open={open} />}
