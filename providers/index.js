@@ -220,9 +220,13 @@ export async function getFilings(symbol) {
     try {
       const arr = await getJSON(`${FINNHUB}/stock/filings?symbol=${symbol}&token=${FINNHUB_KEY}`);
       if (Array.isArray(arr) && arr.length) {
-        return arr.slice(0, 8).map((f) => ({
+        return arr.slice(0, 12).map((f) => ({
           form: f.form, title: f.form + " filing", date: f.filedDate ? f.filedDate.slice(0, 10) : "",
-          summary: f.accessNumber ? `Access #${f.accessNumber}` : "", url: f.reportUrl || f.filingUrl,
+          summary: f.accessNumber ? `Access #${f.accessNumber}` : "",
+          // filingUrl = the clean SEC EDGAR index page (human-readable). reportUrl
+          // often points to a raw .xml/.htm document that renders as ugly XML, so
+          // we prefer filingUrl and only fall back to reportUrl if it's missing.
+          url: f.filingUrl || f.reportUrl,
         }));
       }
     } catch (e) { /* fall through */ }
@@ -230,7 +234,7 @@ export async function getFilings(symbol) {
   const r = await yf.quoteSummary(symbol, { modules: ["secFilings"] }).catch(() => ({}));
   return (r?.secFilings?.filings || []).map((f) => ({
     form: f.type, title: f.title, date: f.date,
-    url: (f.exhibits && f.exhibits[0]?.url) || "https://www.sec.gov/cgi-bin/browse-edgar",
+    url: f.edgarUrl || (f.exhibits && f.exhibits[0]?.url) || "https://www.sec.gov/cgi-bin/browse-edgar",
   }));
 }
 
