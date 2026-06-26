@@ -173,14 +173,17 @@ export async function getNews(symbol) {
 }
 
 /* ---------------- MARKET NEWS (general) ---------------- */
-export async function getMarketNews() {
+export async function getMarketNews(category = "general") {
+  // Finnhub supports: general, forex, crypto, merger. Anything else -> general.
+  const cat = ["general", "forex", "crypto", "merger"].includes(category) ? category : "general";
   if (FINNHUB_KEY) {
     try {
-      const arr = await getJSON(`${FINNHUB}/news?category=general&token=${FINNHUB_KEY}`);
+      const arr = await getJSON(`${FINNHUB}/news?category=${cat}&token=${FINNHUB_KEY}`);
       if (Array.isArray(arr) && arr.length) {
-        return arr.slice(0, 24).map((n) => ({
+        return arr.slice(0, 40).map((n) => ({
           title: n.headline, source: n.source,
           time: n.datetime ? new Date(n.datetime * 1000).toLocaleString() : "",
+          datetime: n.datetime || 0,
           summary: n.summary || "", url: n.url, tickers: n.related ? n.related.split(",").filter(Boolean).slice(0, 4) : [],
         }));
       }
@@ -221,14 +224,31 @@ export async function getFilings(symbol) {
 export async function getAnalystEvents(symbol) {
   const out = [];
   if (FINNHUB_KEY) {
+    // Earnings surprises (free): real EPS actual vs estimate per quarter -> earnings dots
     try {
-      const [recs, pt] = await Promise.all([
-        getJSON(`${FINNHUB}/stock/recommendation?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => []),
-        getJSON(`${FINNHUB}/stock/price-target?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => ({})),
-      ]);
-      // Most recent recommendation snapshot becomes an "analyst" dot.
+      const earnings = await getJSON(`${FINNHUB}/stock/earnings?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => []);
+      if (Array.isArray(earnings)) {
+        earnings.slice(0, 8).forEach((e) => {
+          if (e.period && e.actual != null) {
+            out.push({
+              kind: "earnings",
+              ts: new Date(e.period).getTime(),
+              quarter: e.period,
+              epsAct: e.actual,
+              epsEst: e.estimate,
+              label: e.actual >= (e.estimate ?? 0) ? "Beat estimate" : "Missed estimate",
+              source: `https://www.marketbeat.com/stocks/${symbol}/earnings/`,
+            });
+          }
+        });
+      }
+    } catch (e) { /* ignore */ }
+
+    // Recommendation consensus (free): one aggregated analyst dot
+    try {
+      const recs = await getJSON(`${FINNHUB}/stock/recommendation?symbol=${symbol}&token=${FINNHUB_KEY}`).catch(() => []);
       if (Array.isArray(recs) && recs.length) {
-        const latest = recs[0]; // Finnhub returns newest first
+        const latest = recs[0]; // newest first
         const total = (latest.strongBuy || 0) + (latest.buy || 0) + (latest.hold || 0) + (latest.sell || 0) + (latest.strongSell || 0);
         const bullish = (latest.strongBuy || 0) + (latest.buy || 0);
         const consensus = bullish > total / 2 ? "Buy" : (latest.hold || 0) >= bullish ? "Hold" : "Sell";
@@ -237,15 +257,11 @@ export async function getAnalystEvents(symbol) {
           ts: latest.period ? new Date(latest.period).getTime() : Date.now(),
           firm: `${total} analysts`,
           rating: consensus,
-          target: pt?.targetMean ?? null,
-          targetHigh: pt?.targetHigh ?? null,
-          targetLow: pt?.targetLow ?? null,
           breakdown: { strongBuy: latest.strongBuy, buy: latest.buy, hold: latest.hold, sell: latest.sell, strongSell: latest.strongSell },
-          // public verification page (real source the user can open)
-          source: `https://www.marketbeat.com/stocks/NASDAQ/${symbol}/price-target/`,
+          source: `https://www.marketbeat.com/stocks/${symbol}/price-target/`,
         });
       }
-    } catch (e) { /* fall through to empty */ }
+    } catch (e) { /* ignore */ }
   }
   return out;
 }
@@ -272,18 +288,47 @@ export async function search(q) {
 /* ---------------- SCREENER ---------------- */
 // Finnhub has no general screener on free tier; Yahoo's predefined screeners
 // power the category pills.
+// Yahoo's predefined screeners we can actually use (free). Categories not
+// covered here map to the closest available one so the tab still returns data.
 const SCREEN_MAP = {
   "Top gainers": "day_gainers", "Biggest losers": "day_losers", "Most active": "most_actives",
   "Small-cap": "small_cap_gainers", "Overbought": "day_gainers", "Oversold": "day_losers",
   "52-week high": "day_gainers", "52-week low": "day_losers",
+  "All stocks": "most_actives", "Large-cap": "most_actives",
+  "Most volatile": "day_gainers", "High beta": "day_gainers", "Unusual volume": "most_actives",
+  "Best performing": "day_gainers", "Worst performing": "day_losers",
+  // Pre-market / after-hours / fundamentals aren't in Yahoo's free predefined
+  // screeners — fall back to a sensible proxy so the tab isn't broken.
+  "Pre-market gainers": "day_gainers", "Pre-market losers": "day_losers", "Pre-market most active": "most_actives",
+  "Pre-market gap": "day_gainers", "After-hours gainers": "day_gainers", "After-hours losers": "day_losers",
+  "After-hours most active": "most_actives", "High-dividend": "most_actives",
+  "Highest net income": "most_actives", "Highest cash": "most_actives",
+  "Highest profit per employee": "most_actives", "Highest revenue per employee": "most_actives",
+  "Largest employers": "most_actives",
 };
+
 export async function getScreener(cat) {
-  const scrId = SCREEN_MAP[cat] || "day_gainers";
-  const r = await yf.screener({ scrIds: scrId, count: 25 });
-  return (r?.quotes || []).map((q) => ({
-    ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
-    changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
-  }));
+  const scrId = SCREEN_MAP[cat] || "most_actives";
+  try {
+    const r = await yf.screener({ scrIds: scrId, count: 25 });
+    const rows = (r?.quotes || []).map((q) => ({
+      ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
+      changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
+    }));
+    if (rows.length) return rows;
+  } catch (e) { /* fall through to fallback below */ }
+
+  // Fallback: if Yahoo's screener fails, try the most_actives default once.
+  if (scrId !== "most_actives") {
+    try {
+      const r2 = await yf.screener({ scrIds: "most_actives", count: 25 });
+      return (r2?.quotes || []).map((q) => ({
+        ticker: q.symbol, name: q.shortName || q.longName, price: q.regularMarketPrice,
+        changePct: q.regularMarketChangePercent, marketCap: q.marketCap, volume: q.regularMarketVolume,
+      }));
+    } catch (e) { /* give up gracefully */ }
+  }
+  return []; // never throw — an empty list is handled by the UI
 }
 
 export function providerStatus() {
