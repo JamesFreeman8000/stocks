@@ -635,8 +635,26 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
     const pad = Math.max(spread * 0.08, hi * 0.005); // proportional, never zero
     return [+(lo - pad).toFixed(2), +(hi + pad).toFixed(2)];
   }, [series]);
-  const changePct = stock ? (stock.change / stock.prevClose) * 100 : 0;
-  const up = stock && stock.change >= 0;
+  // Range-aware change: 1D uses the live day quote; longer ranges are computed
+  // from the first vs last price of the chart series (real data) for that range.
+  const { rangeChange, rangePct } = useMemo(() => {
+    if (range === "1D") {
+      const pct = stock && stock.prevClose ? (stock.change / stock.prevClose) * 100 : 0;
+      return { rangeChange: stock?.change ?? 0, rangePct: pct };
+    }
+    const prices = series.map((p) => p.price).filter((v) => typeof v === "number");
+    if (prices.length >= 2) {
+      const first = prices[0], last = prices[prices.length - 1];
+      const chg = last - first;
+      const pct = first ? (chg / first) * 100 : 0;
+      return { rangeChange: chg, rangePct: pct };
+    }
+    // fallback to day change if series not ready
+    const pct = stock && stock.prevClose ? (stock.change / stock.prevClose) * 100 : 0;
+    return { rangeChange: stock?.change ?? 0, rangePct: pct };
+  }, [range, series, stock]);
+  const changePct = rangePct;
+  const up = rangeChange >= 0;
   const inWatch = watchlist.includes(active);
   const toggleWatch = () => toggleTicker(active);
 
@@ -705,7 +723,8 @@ function MarketsPage({ active, notFound, open, watchlist, addTicker, removeTicke
           <div style={{ display: "flex", alignItems: "baseline", gap: 22, flexWrap: "wrap" }}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
               <span style={{ fontSize: 38, fontWeight: 700, fontFamily: "'Space Grotesk',sans-serif" }}>{stock.price.toFixed(2)}</span>
-              <span style={{ fontSize: 17, fontWeight: 600, color: up ? "#34d399" : "#f87171" }}>{up ? "+" : ""}{stock.change.toFixed(2)} ({up ? "+" : ""}{changePct.toFixed(2)}%)</span>
+              <span style={{ fontSize: 17, fontWeight: 600, color: up ? "#34d399" : "#f87171" }}>{up ? "+" : ""}{rangeChange.toFixed(2)} ({up ? "+" : ""}{changePct.toFixed(2)}%)</span>
+              <span style={{ fontSize: 12.5, fontWeight: 600, color: "#64748b" }}>{range === "1D" ? "Today" : range}</span>
             </div>
             {stock.ah ? (<div style={{ display: "flex", alignItems: "baseline", gap: 8, opacity: .92 }}>
               <span style={{ fontSize: 23, fontWeight: 600, fontFamily: "'Space Grotesk',sans-serif" }}>{stock.ah.toFixed(2)}</span>
