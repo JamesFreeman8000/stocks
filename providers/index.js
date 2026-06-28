@@ -215,6 +215,25 @@ export async function getMarketNews(category = "general") {
 }
 
 /* ---------------- SEC FILINGS ---------------- */
+// Build the best link to the ACTUAL filed document.
+// - reportUrl is the real document. SEC wraps many in an inline-XBRL viewer
+//   (".../ix?doc=/Archives/...") which renders nicely for HTML docs.
+// - If the real document is a raw .xml file, the viewer shows ugly XML — for
+//   those we use the filing's index page instead, which lists readable docs.
+function cleanFilingUrl(reportUrl, filingUrl) {
+  if (!reportUrl) return filingUrl || "https://www.sec.gov/cgi-bin/browse-edgar";
+  // Extract the underlying document path if it's wrapped in the XBRL viewer.
+  const docPart = reportUrl.includes("ix?doc=")
+    ? reportUrl.split("ix?doc=")[1]
+    : reportUrl;
+  const lower = docPart.toLowerCase();
+  // If the actual document is a bare XML file, the readable view is the index
+  // page (lists the human-readable exhibits). Otherwise link straight to the doc.
+  if (lower.endsWith(".xml")) return filingUrl || reportUrl;
+  // For HTML docs, keep SEC's inline viewer (renders the filing formatted).
+  return reportUrl;
+}
+
 export async function getFilings(symbol) {
   if (FINNHUB_KEY) {
     try {
@@ -223,10 +242,7 @@ export async function getFilings(symbol) {
         return arr.slice(0, 12).map((f) => ({
           form: f.form, title: f.form + " filing", date: f.filedDate ? f.filedDate.slice(0, 10) : "",
           summary: f.accessNumber ? `Access #${f.accessNumber}` : "",
-          // filingUrl = the clean SEC EDGAR index page (human-readable). reportUrl
-          // often points to a raw .xml/.htm document that renders as ugly XML, so
-          // we prefer filingUrl and only fall back to reportUrl if it's missing.
-          url: f.filingUrl || f.reportUrl,
+          url: cleanFilingUrl(f.reportUrl, f.filingUrl),
         }));
       }
     } catch (e) { /* fall through */ }
